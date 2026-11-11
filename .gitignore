@@ -1,0 +1,14 @@
+tmp/
+node_modules/
+dist/
+target/
+.angular/
+coverage/
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+*.log
+
