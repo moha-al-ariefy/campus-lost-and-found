@@ -1,0 +1,112 @@
+@if (booting()) {
+  <div class="boot" role="status"><img class="brand-logo" src="assets/app-logo.png" alt="" width="42" height="42">{{ t.loading }}</div>
+} @else if (!account()) {
+  <main class="login-layout">
+    <section class="login-story">
+      <a class="brand" href="/"><img class="brand-logo" src="assets/app-logo.png" alt="" width="42" height="42"><span>{{ t.app }}<small>{{ t.campus }}</small></span></a>
+      <div class="story-copy"><span class="eyebrow">{{ t.campus }}</span><h1>{{ t.tagline }}</h1><p>{{ t.intro }}</p>
+        <div class="abstract-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="art-key">⌕</div><span class="art-dot"></span></div>
+      </div>
+      <p class="story-footer">{{ t.course }}</p>
+    </section>
+    <section class="login-form-region">
+      <form (ngSubmit)="signIn()" class="login-form">
+        <span class="pill">{{ t.testLabel }}</span><h2>{{ needsSetup() ? t.setupTitle : t.loginTitle }}</h2><p class="muted">{{ needsSetup() ? t.setupHint : t.loginHint }}</p>
+        @if (setupMessage()) { <div class="success-banner" role="status">{{ setupMessage() }}</div> }
+        @if (error()) { <div class="error-banner" role="alert">{{ error() }}</div> }
+        @if (!needsSetup()) { <label for="login">{{ t.login }}</label><input id="login" name="login" [(ngModel)]="loginName" autocomplete="username" required maxlength="100"> }
+        <label for="password">{{ needsSetup() ? t.setupPassword : t.password }}</label><input id="password" name="password" type="password" [(ngModel)]="password" [attr.autocomplete]="needsSetup() ? 'new-password' : 'current-password'" required [minlength]="needsSetup() ? 12 : 1" maxlength="200">
+        <button type="submit" class="primary full" [disabled]="busy()">{{ busy() ? t.signingIn : needsSetup() ? t.setupButton : t.signIn }} <span aria-hidden="true">→</span></button>
+        @if (!needsSetup()) { <p class="login-notice">{{ t.setupAccountHint }}</p> }
+        <p class="login-notice">{{ t.loginNotice }}</p>
+      </form>
+    </section>
+  </main>
+} @else {
+  <div class="app-layout">
+    <aside class="sidebar">
+      <a class="brand" href="/" (click)="$event.preventDefault(); showDirectory()"><img class="brand-logo" src="assets/app-logo.png" alt="" width="42" height="42"><span>{{ t.app }}<small>{{ t.campus }}</small></span></a>
+      <p class="nav-label">{{ t.workspace }}</p>
+      <nav>
+        <button [class.active]="view() === 'directory'" (click)="showDirectory()" [attr.aria-current]="view() === 'directory' ? 'page' : null"><span aria-hidden="true">▦</span>{{ t.directory }}</button>
+        @if (account()!.role !== 'campus') { <button [class.active]="view() === 'intake'" (click)="showIntake()" [attr.aria-current]="view() === 'intake' ? 'page' : null"><span aria-hidden="true">＋</span>{{ t.intake }}</button> }
+      </nav>
+      <div class="sidebar-note"><span class="tiny-mark" aria-hidden="true">◇</span><strong>{{ t.privacyTitle }}</strong><p>{{ t.privacyHint }}</p></div>
+      <div class="profile"><span class="avatar">{{ initials() }}</span><div><strong>{{ account()!.name }}</strong><small>{{ t.roles[account()!.role] }}</small></div></div>
+      <button class="logout" (click)="signOut()" [disabled]="busy()">{{ t.signOut }} <span aria-hidden="true">↗</span></button>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><span>{{ t.campus }} <span class="slash">/</span> {{ view() === 'directory' ? t.directory : t.intake }}</span><span class="environment"><i></i>{{ t.localNotice }}</span></header>
+      <main class="main-content">
+        @if (success()) { <div class="success-banner" role="status">{{ success() }}</div> }
+        @if (error() && view() !== 'intake') { <div class="error-banner" role="alert">{{ error() }}</div> }
+        @if (view() === 'directory') {
+          <div class="page-heading"><div><span class="eyebrow">{{ t.directory }}</span><h1>{{ t.directoryTitle }}</h1><p>{{ t.directoryHint }}</p></div>@if (account()!.role !== 'campus') { <button class="primary" (click)="showIntake()"><span aria-hidden="true">＋</span>{{ t.intake }}</button> }
+          </div>
+          <form class="filters" (ngSubmit)="search()">
+            <div class="filter-field location-field"><label for="filter-location">{{ t.location }}</label><input id="filter-location" name="location" [(ngModel)]="filters.location" [placeholder]="t.locationHint"></div>
+            <div class="filter-field"><label for="filter-category">{{ t.category }}</label><select id="filter-category" name="category" [(ngModel)]="filters.category"><option value="">{{ t.allCategories }}</option>@for (category of categories(); track category) { <option [value]="category">{{ categoryName(category) }}</option> }</select></div>
+            <div class="filter-field"><label for="filter-point">{{ t.holdingPoint }}</label><select id="filter-point" name="point" [(ngModel)]="filters.holdingPoint"><option value="">{{ t.allPoints }}</option>@for (point of points(); track point) { <option [value]="point">{{ pointName(point) }}</option> }</select></div>
+            <div class="filter-field"><label for="filter-from">{{ t.from }}</label><input id="filter-from" name="from" type="date" [(ngModel)]="filters.from"></div>
+            <div class="filter-field"><label for="filter-to">{{ t.to }}</label><input id="filter-to" name="to" type="date" [(ngModel)]="filters.to"></div>
+            <div class="filter-actions"><button class="primary" type="submit" [disabled]="loading()">{{ t.search }}</button><button class="text-button" type="button" (click)="clearFilters()">{{ t.clear }}</button></div>
+          </form>
+          <div class="directory-layout" [class.with-detail]="selected() || detailLoading() || detailError()">
+            <section class="results-region" [attr.aria-busy]="loading()">
+              @if (loading()) { <div class="empty-state" role="status"><span class="spinner"></span><p>{{ t.loading }}</p></div> }
+              @else if (listError()) { <div class="empty-state"><h2>{{ t.errors.unavailable }}</h2><p role="alert">{{ listError() }}</p><button class="secondary" (click)="search()">{{ t.retry }}</button></div> }
+              @else {
+                <div class="results-heading"><strong>{{ total() }} {{ total() === 1 ? t.result : t.results }}</strong><span>{{ t.open }}</span></div>
+                @if (!items().length) { <div class="empty-state"><span class="empty-icon" aria-hidden="true">⌕</span><h2>{{ hasFilters() ? t.noMatches : t.emptyTitle }}</h2><p>{{ hasFilters() ? t.noMatchesHint : t.emptyHint }}</p>@if (hasFilters()) { <button class="secondary" (click)="clearFilters()">{{ t.clear }}</button> }</div> }
+                <div class="item-list">@for (item of items(); track item.id) {
+                  <button class="item-row" [class.selected]="selected()?.id === item.id" (click)="openItem(item.id)" [attr.aria-label]="t.viewItem + ': ' + categoryName(item.category) + ', ' + item.location">
+                    <span class="item-icon" aria-hidden="true">{{ item.category === 'keys' ? '⚿' : item.category === 'electronics' ? '▣' : '◇' }}</span>
+                    <span class="item-main"><strong>{{ categoryName(item.category) }}</strong><span>{{ item.location }}</span><small>{{ t.foundOn }} {{ item.dateFound | date:'dd MMM yyyy' }}</small></span>
+                    <span class="item-end"><span class="status">{{ t.open }}</span><small>{{ pointName(item.holdingPoint) }}</small></span><span class="row-arrow" aria-hidden="true">↗</span>
+                  </button>
+                }</div>
+                @if (total() > 20) { <div class="pagination"><button class="secondary" [disabled]="page() === 1" (click)="search(page() - 1, true)">{{ t.previous }}</button><span>{{ t.page }} {{ page() }}</span><button class="secondary" [disabled]="page() * 20 >= total()" (click)="search(page() + 1, true)">{{ t.next }}</button></div> }
+              }
+            </section>
+            @if (selected() || detailLoading() || detailError()) {
+              <section class="detail-panel" [attr.aria-label]="t.itemDetails">
+                <button class="text-button" (click)="closeDetail()">← {{ t.back }}</button>
+                @if (detailLoading()) { <p role="status">{{ t.detailLoading }}</p> }
+                @if (detailError()) { <p class="error-banner" role="alert">{{ detailError() }}</p><button class="secondary" (click)="retryDetail()">{{ t.retry }}</button> }
+                @if (selected(); as item) {
+                  <div class="detail-title"><span class="item-icon large" aria-hidden="true">◇</span><span class="status">{{ t.open }}</span></div><h2>{{ categoryName(item.category) }}</h2><p class="detail-location">{{ item.location }}</p>
+                  <dl><dt>{{ t.foundOn }}</dt><dd>{{ item.dateFound | date:'dd MMM yyyy' }}</dd><dt>{{ t.heldAt }}</dt><dd>{{ pointName(item.holdingPoint) }}</dd><dt>{{ t.reference }}</dt><dd class="reference">{{ item.id }}</dd></dl>
+                  @if (item.description !== undefined) {
+                    <div class="private-block"><h3>{{ t.privateDetails }}</h3><p class="hint">{{ t.privateHint }}</p><dl><dt>{{ t.description }}</dt><dd>{{ item.description }}</dd><dt>{{ t.identifyingDetails }}</dt><dd>{{ item.identifyingDetails || t.notProvided }}</dd><dt>{{ t.receivedAt }}</dt><dd>{{ item.receivedAt?.replace('T', ' ') }}<small>{{ t.receivedHint }}</small></dd><dt>{{ t.color }} / {{ t.brand }} / {{ t.building }}</dt><dd>{{ item.color || t.notProvided }} / {{ item.brand || t.notProvided }} / {{ item.building || t.notProvided }}</dd></dl></div>
+                  } @else { <p class="privacy-note">{{ t.noPrivate }}</p> }
+                  @if (history().length) { <div class="activity"><h3>{{ t.history }}</h3>@for (entry of history(); track entry.sequence) { <p><strong>{{ t.created }}</strong><span>{{ entry.actor }}</span><small>{{ entry.timestamp | date:'dd MMM yyyy, HH:mm':'+0400' }}</small></p> }</div> }
+                }
+              </section>
+            }
+          </div>
+        } @else {
+          <div class="page-heading"><div><span class="eyebrow">{{ t.intake }}</span><h1>{{ t.intakeTitle }}</h1><p>{{ t.intakeHint }}</p></div></div>
+          <form class="intake-form" (ngSubmit)="save()">
+            @if (error()) { <div class="error-banner" id="form-errors" role="alert" tabindex="-1"><strong>{{ uncertain() ? t.unknownOutcome : t.errorTitle }}</strong>@if (!uncertain()) { <p>{{ error() }}</p><ul>@for (field of invalidFields(); track field) { <li><a [href]="'#' + field">{{ fieldName(field) }}</a></li> }</ul> }</div> }
+            <fieldset [disabled]="busy() || uncertain()"><legend>{{ t.coreDetails }}</legend><p class="section-hint">{{ t.coreHint }}</p>
+              <div class="form-grid">
+                <div class="field"><label for="category">{{ t.category }}</label><select id="category" name="category" [(ngModel)]="form.category" required [attr.aria-invalid]="invalidFields().includes('category')"><option value="" disabled>{{ t.chooseCategory }}</option>@for (category of categories(); track category) { <option [value]="category">{{ categoryName(category) }}</option> }</select></div>
+                <div class="field"><label for="holdingPoint">{{ t.holdingPoint }}</label><select id="holdingPoint" name="holdingPoint" [(ngModel)]="form.holdingPoint" required [attr.aria-invalid]="invalidFields().includes('holdingPoint')"><option value="" disabled>{{ t.choosePoint }}</option>@for (point of allowedPoints(); track point) { <option [value]="point">{{ pointName(point) }}</option> }</select></div>
+                <div class="field wide"><label for="description">{{ t.description }}</label><textarea id="description" name="description" [(ngModel)]="form.description" required maxlength="2000" rows="3" aria-describedby="description-help" [attr.aria-invalid]="invalidFields().includes('description')"></textarea><small id="description-help">{{ t.descriptionHint }}</small></div>
+                <div class="field wide"><label for="location">{{ t.location }}</label><input id="location" name="location" [(ngModel)]="form.location" required maxlength="150" aria-describedby="location-help" [attr.aria-invalid]="invalidFields().includes('location')"><small id="location-help">{{ t.locationHelp }}</small></div>
+                <div class="field"><label for="dateFound">{{ t.dateFound }}</label><input id="dateFound" name="dateFound" type="date" [(ngModel)]="form.dateFound" required [attr.aria-invalid]="invalidFields().includes('dateFound')"></div>
+                <div class="field"><label for="receivedAt">{{ t.receivedAt }}</label><input id="receivedAt" name="receivedAt" type="datetime-local" [(ngModel)]="form.receivedAt" required [attr.aria-invalid]="invalidFields().includes('receivedAt')"><small>{{ t.receivedHint }}</small></div>
+              </div>
+            </fieldset>
+            <fieldset [disabled]="busy() || uncertain()"><legend>{{ t.moreDetails }} <span>{{ t.optional }}</span></legend><p class="section-hint">{{ t.moreHint }}</p><div class="form-grid three">
+              <div class="field"><label for="color">{{ t.color }}</label><input id="color" name="color" [(ngModel)]="form.color" maxlength="500"></div><div class="field"><label for="brand">{{ t.brand }}</label><input id="brand" name="brand" [(ngModel)]="form.brand" maxlength="500"></div><div class="field"><label for="building">{{ t.building }}</label><input id="building" name="building" [(ngModel)]="form.building" maxlength="500"></div>
+              <div class="field wide"><label for="identifyingDetails">{{ t.identifyingDetails }}</label><textarea id="identifyingDetails" name="identifyingDetails" [(ngModel)]="form.identifyingDetails" maxlength="500" rows="3"></textarea><small>{{ t.identifyingHint }}</small></div>
+            </div></fieldset>
+            <div class="form-footer"><p>{{ t.requiredHint }}</p><div><button class="text-button" type="button" (click)="showDirectory()" [disabled]="busy()">{{ t.cancel }}</button><button type="submit" class="primary" [disabled]="busy()">{{ busy() ? t.saving : uncertain() ? t.checkSubmission : t.save }} <span aria-hidden="true">→</span></button></div></div>
+          </form>
+        }
+        <footer class="workspace-footer"><span>{{ t.course }}</span><span>{{ t.iteration }}</span></footer>
+      </main>
+    </div>
+  </div>
+}

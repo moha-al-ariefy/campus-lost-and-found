@@ -1,0 +1,35 @@
+{
+  "name": "campus-lost-and-found",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12.0 <23 || >=24.0.0" },
+  "scripts": {
+    "dev": "concurrently -k -n server,angular \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "cd desktop && go run . --serve",
+    "dev:web": "ng serve --host 127.0.0.1 --port 4200 --proxy-config proxy.conf.json",
+    "build": "ng build",
+    "start": "cd desktop && go run . --serve",
+    "test": "cd desktop && go test ./backend",
+    "check": "cd desktop && go vet ./backend",
+    "build:desktop-ui": "ng build && node scripts/copy-ui.mjs",
+    "desktop:dev": "node scripts/desktop.mjs dev",
+    "desktop:build": "node scripts/desktop.mjs build -clean -trimpath"
+  },
+  "dependencies": {
+    "@angular/common": "^21.0.0",
+    "@angular/compiler": "^21.0.0",
+    "@angular/core": "^21.0.0",
+    "@angular/forms": "^21.0.0",
+    "@angular/platform-browser": "^21.0.0",
+    "rxjs": "~7.8.2",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.0.0",
+    "@angular/cli": "^21.0.0",
+    "@types/node": "^22.15.0",
+    "concurrently": "^9.1.2",
+    "typescript": "~5.9.3"
+  }
+}

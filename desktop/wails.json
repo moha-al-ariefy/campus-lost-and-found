@@ -1,0 +1,10 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "campus-lost-and-found",
+  "outputfilename": "CampusLostFound",
+  "frontend:dir": "..",
+  "frontend:install": "",
+  "frontend:build": "npm run build:desktop-ui",
+  "author": { "name": "Team LAMNZ" },
+  "info": { "companyName": "Team LAMNZ", "productName": "Campus Lost & Found", "productVersion": "0.1.0", "comments": "RIT Dubai SWEN 261 final project" }
+}
