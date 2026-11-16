@@ -1,0 +1,24 @@
+[Unit]
+Description=Campus Lost & Found API
+After=network.target
+
+[Service]
+User=claf
+Group=claf
+EnvironmentFile=/etc/claf/server.env
+Environment=CAMPUS_DATA_DIR=/var/lib/claf
+Environment=GOMEMLIMIT=384MiB
+ExecStart=/usr/local/bin/campus-server
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+StateDirectory=claf
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

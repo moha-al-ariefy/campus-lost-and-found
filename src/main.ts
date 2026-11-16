@@ -18,6 +18,8 @@ export class App {
   readonly account = signal<Account | null>(null);
   readonly booting = signal(true);
   readonly needsSetup = signal(false);
+  readonly signupEnabled = signal(false);
+  readonly signingUp = signal(false);
   readonly setupMessage = signal('');
   readonly busy = signal(false);
   readonly loading = signal(false);
@@ -37,6 +39,7 @@ export class App {
   readonly categories = signal<string[]>([]);
   readonly points = signal<string[]>([]);
   loginName = '';
+  displayName = '';
   password = '';
   filters = { category: '', location: '', holdingPoint: '', from: '', to: '' };
   form: Intake = this.blankForm();
@@ -79,8 +82,9 @@ export class App {
 
   async restoreSession(): Promise<void> {
     try {
-      const setup = await this.api<{ needsSetup: boolean }>('/setup');
+      const setup = await this.api<{ needsSetup: boolean; signupEnabled?: boolean }>('/setup');
       this.needsSetup.set(setup.needsSetup);
+      this.signupEnabled.set(setup.signupEnabled === true);
       if (setup.needsSetup) return;
       const session = await this.api<{ account: Account }>('/session');
       this.account.set(session.account); await this.loadConfig(); await this.search();
@@ -89,17 +93,35 @@ export class App {
   }
 
   async signIn(): Promise<void> {
+    if (this.busy()) return;
     this.busy.set(true); this.error.set('');
     try {
       if (this.needsSetup()) {
         await this.api('/setup', { method: 'POST', body: JSON.stringify({ password: this.password }) });
         this.needsSetup.set(false); this.setupMessage.set(this.t.setupDone); this.password = ''; return;
       }
+      if (this.signingUp()) {
+        await this.api('/signup', {
+          method: 'POST',
+          body: JSON.stringify({ name: this.displayName, login: this.loginName, password: this.password }),
+        });
+        this.showSignup(false);
+        this.setupMessage.set(this.t.signupDone);
+        return;
+      }
       const session = await this.api<{ account: Account }>('/login', { method: 'POST', body: JSON.stringify({ login: this.loginName, password: this.password }) });
       this.password = ''; this.account.set(session.account); this.view.set('directory');
       await this.loadConfig(); await this.search();
     } catch (error) { this.error.set(this.message(error)); }
     finally { this.busy.set(false); }
+  }
+
+  showSignup(visible: boolean): void {
+    if (visible && !this.signupEnabled()) return;
+    this.signingUp.set(visible);
+    this.password = '';
+    this.error.set('');
+    this.setupMessage.set('');
   }
 
   async signOut(): Promise<void> {

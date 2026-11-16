@@ -18,17 +18,19 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
-
-	"golang.org/x/crypto/scrypt"
 )
 
 type API struct {
-	DB            *sql.DB
-	AllowSetup    bool
-	SecureCookies bool
-	AllowedOrigin string
-	mu            sync.Mutex
-	attempts      map[string]attempt
+	DB              *sql.DB
+	AllowSetup      bool
+	SecureCookies   bool
+	AllowedOrigin   string
+	TrustLocalProxy bool
+	EnableSignup    bool
+	photoSlots      chan struct{}
+	loginSlots      chan struct{}
+	mu              sync.Mutex
+	attempts        map[string]attempt
 }
 type attempt struct {
 	count int
@@ -48,7 +50,12 @@ type Intake struct {
 	Building           string `json:"building"`
 }
 
-func NewAPI(db *sql.DB) *API { return &API{DB: db, attempts: make(map[string]attempt)} }
+func NewAPI(db *sql.DB) *API {
+	return &API{
+		DB: db, attempts: make(map[string]attempt),
+		photoSlots: make(chan struct{}, 1), loginSlots: make(chan struct{}, 4),
+	}
+}
 func hash(value string) string {
 	result := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(result[:])
@@ -113,6 +120,10 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.login(w, r)
 		return
 	}
+	if r.URL.Path == "/api/signup" && r.Method == "POST" {
+		a.signup(w, r)
+		return
+	}
 	actor, err := a.actor(r)
 	if errors.Is(err, sql.ErrNoRows) {
 		fail(w, 401, "sessionExpired")
@@ -138,8 +149,15 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.search(w, r)
 	case r.URL.Path == "/api/items" && r.Method == "POST":
 		a.createItem(w, r, actor)
+	case strings.HasPrefix(r.URL.Path, "/api/items/") && strings.HasSuffix(r.URL.Path, "/withdraw") && r.Method == "POST":
+		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/items/"), "/withdraw")
+		a.withdrawItem(w, r, id, actor)
 	case strings.HasPrefix(r.URL.Path, "/api/items/") && r.Method == "GET":
 		id := strings.TrimPrefix(r.URL.Path, "/api/items/")
+		if strings.HasSuffix(id, "/photo") {
+			a.itemPhoto(w, strings.TrimSuffix(id, "/photo"), actor)
+			return
+		}
 		if strings.HasSuffix(id, "/history") {
 			a.history(w, strings.TrimSuffix(id, "/history"), actor)
 			return
@@ -161,7 +179,11 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) setup(w http.ResponseWriter, r *http.Request) {
 	if !a.AllowSetup {
-		reply(w, 200, map[string]bool{"needsSetup": false})
+		state := map[string]bool{"needsSetup": false}
+		if a.EnableSignup {
+			state["signupEnabled"] = true
+		}
+		reply(w, 200, state)
 		return
 	}
 	a.mu.Lock()
@@ -207,25 +229,11 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 		fail(w, 401, "loginFailed")
 		return
 	}
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	a.mu.Lock()
-	now := time.Now()
-	for key, value := range a.attempts {
-		if now.After(value.reset) {
-			delete(a.attempts, key)
-		}
-	}
-	value := a.attempts[ip]
-	if value.reset.IsZero() {
-		value.reset = now.Add(time.Minute)
-	}
-	value.count++
-	a.attempts[ip] = value
-	a.mu.Unlock()
-	if value.count > 15 {
-		fail(w, 429, "rateLimited")
+	if !a.takeAuthSlot(w, r, "login", 15) {
 		return
 	}
+	defer func() { <-a.loginSlots }()
+	now := time.Now()
 	var account Account
 	var points, salt, expected string
 	err := a.DB.QueryRow("SELECT id,name,role,holding_points,salt,password_hash FROM accounts WHERE login=?", strings.ToLower(strings.TrimSpace(credentials.Login))).Scan(&account.ID, &account.Name, &account.Role, &points, &salt, &expected)
@@ -238,7 +246,7 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 		salt = strings.Repeat("0", 32)
 		expected = strings.Repeat("0", 128)
 	}
-	computed, err := scrypt.Key([]byte(credentials.Password), []byte(salt), 16384, 8, 1, 64)
+	computed, err := derivePassword(credentials.Password, salt)
 	if err != nil {
 		fail(w, 503, "unavailable")
 		return
@@ -273,6 +281,53 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: "campus_session", Value: token, Path: "/api", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: a.SecureCookies, MaxAge: 28800})
 	reply(w, 200, map[string]any{"account": account})
+}
+
+func (a *API) takeAuthSlot(w http.ResponseWriter, r *http.Request, action string, maxAttempts int) bool {
+	ip := action + ":" + a.clientIP(r)
+	a.mu.Lock()
+	now := time.Now()
+	for key, value := range a.attempts {
+		if now.After(value.reset) {
+			delete(a.attempts, key)
+		}
+	}
+	value := a.attempts[ip]
+	if value.reset.IsZero() {
+		if len(a.attempts) >= 4096 {
+			a.mu.Unlock()
+			w.Header().Set("Retry-After", "60")
+			fail(w, 429, "rateLimited")
+			return false
+		}
+		value.reset = now.Add(time.Minute)
+	}
+	value.count++
+	a.attempts[ip] = value
+	a.mu.Unlock()
+	if value.count > maxAttempts {
+		w.Header().Set("Retry-After", "60")
+		fail(w, 429, "rateLimited")
+		return false
+	}
+	select {
+	case a.loginSlots <- struct{}{}:
+		return true
+	default:
+		w.Header().Set("Retry-After", "2")
+		fail(w, 503, "unavailable")
+		return false
+	}
+}
+
+func (a *API) clientIP(r *http.Request) string {
+	peer, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if a.TrustLocalProxy && net.ParseIP(peer).IsLoopback() {
+		if forwarded := net.ParseIP(r.Header.Get("X-Real-IP")); forwarded != nil {
+			return forwarded.String()
+		}
+	}
+	return peer
 }
 
 func validDate(value string) bool {
@@ -341,12 +396,20 @@ func (a *API) search(w http.ResponseWriter, r *http.Request) {
 type queryer interface{ QueryRow(string, ...any) *sql.Row }
 
 func loadItem(db queryer, id string, actor *Account) (map[string]any, error) {
-	var category, location, date, point, creator, private string
-	err := db.QueryRow("SELECT category,location,date_found,holding_point,creator_id,private_data FROM items WHERE id=? AND status='Open'", id).Scan(&category, &location, &date, &point, &creator, &private)
+	return loadItemView(db, id, actor, false)
+}
+
+func loadItemView(db queryer, id string, actor *Account, ownReplay bool) (map[string]any, error) {
+	var category, location, date, point, status, creator, private string
+	var hasPhoto bool
+	err := db.QueryRow(`SELECT category,location,date_found,holding_point,status,creator_id,private_data,
+		EXISTS(SELECT 1 FROM item_photos WHERE item_id=items.id)
+		FROM items WHERE id=? AND (status='Open' OR (status='Withdrawn' AND (?='admin' OR (? AND creator_id=?))))`,
+		id, actor.Role, ownReplay, actor.ID).Scan(&category, &location, &date, &point, &status, &creator, &private, &hasPhoto)
 	if err != nil {
 		return nil, err
 	}
-	item := map[string]any{"id": id, "category": category, "location": location, "dateFound": date, "holdingPoint": point, "status": "Open"}
+	item := map[string]any{"id": id, "category": category, "location": location, "dateFound": date, "holdingPoint": point, "status": status}
 	// Keep the clues off the wire. CSS is not a privacy policy.
 	if actor.Role == "admin" || actor.ID == creator {
 		var fields map[string]any
@@ -357,8 +420,28 @@ func loadItem(db queryer, id string, actor *Account) (map[string]any, error) {
 			item[key] = value
 		}
 		item["creatorId"] = creator
+		if hasPhoto {
+			item["photoUrl"] = "/api/items/" + id + "/photo"
+		}
 	}
 	return item, nil
+}
+
+func (a *API) itemPhoto(w http.ResponseWriter, id string, actor *Account) {
+	var photo itemPhoto
+	err := a.DB.QueryRow(`SELECT p.mime,p.content FROM item_photos p JOIN items i ON i.id=p.item_id
+		WHERE i.id=? AND (i.creator_id=? OR ?='admin')`, id, actor.ID, actor.Role).Scan(&photo.mime, &photo.content)
+	if errors.Is(err, sql.ErrNoRows) {
+		fail(w, 404, "notFound")
+		return
+	}
+	if err != nil {
+		fail(w, 503, "unavailable")
+		return
+	}
+	w.Header().Set("Content-Type", photo.mime)
+	w.Header().Set("Content-Length", strconv.Itoa(len(photo.content)))
+	_, _ = w.Write(photo.content)
 }
 
 func validate(data *Intake) []string {
@@ -404,7 +487,18 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 		return
 	}
 	var data Intake
-	if !readBody(w, r, &data) {
+	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/") {
+		select {
+		case a.photoSlots <- struct{}{}:
+			defer func() { <-a.photoSlots }()
+		default:
+			w.Header().Set("Retry-After", "2")
+			fail(w, 503, "unavailable")
+			return
+		}
+	}
+	inputPhoto, valid := readIntake(w, r, &data)
+	if !valid {
 		return
 	}
 	if fields := validate(&data); len(fields) > 0 {
@@ -420,7 +514,16 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 		fail(w, 400, "submissionKeyRequired")
 		return
 	}
-	fingerprint := hash(encode(data))
+	fingerprint := intakeFingerprint(data, inputPhoto)
+	var photo itemPhoto
+	if inputPhoto != nil {
+		var err error
+		photo, err = reducePhoto(inputPhoto)
+		if err != nil {
+			fail(w, 400, "invalidPhoto")
+			return
+		}
+	}
 	tx, err := a.DB.Begin()
 	if err != nil {
 		fail(w, 503, "unavailable")
@@ -434,7 +537,7 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 			fail(w, 409, "submissionChanged")
 			return
 		}
-		item, err := loadItem(tx, id, actor)
+		item, err := loadItemView(tx, id, actor, true)
 		if err != nil {
 			fail(w, 503, "unavailable")
 			return
@@ -455,6 +558,9 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
 	private := encode(map[string]any{"description": data.Description, "identifyingDetails": data.IdentifyingDetails, "receivedAt": data.ReceivedAt, "color": data.Color, "brand": data.Brand, "building": data.Building})
 	_, err = tx.Exec("INSERT INTO items(id,category,location,date_found,holding_point,creator_id,private_data,created_at) VALUES(?,?,?,?,?,?,?,?)", id, data.Category, data.Location, data.DateFound, data.HoldingPoint, actor.ID, private, timestamp)
+	if err == nil && inputPhoto != nil {
+		_, err = tx.Exec("INSERT INTO item_photos(item_id,mime,content) VALUES(?,?,?)", id, photo.mime, photo.content)
+	}
 	if err == nil {
 		_, err = tx.Exec("INSERT INTO history(record_id,action,account_id,timestamp,values_json) VALUES(?,?,?,?,?)", id, "created", actor.ID, timestamp, encode(data))
 	}
@@ -481,7 +587,9 @@ func (a *API) history(w http.ResponseWriter, id string, actor *Account) {
 		fail(w, 403, "forbidden")
 		return
 	}
-	rows, err := a.DB.Query("SELECT h.sequence,h.action,h.timestamp,a.name FROM history h JOIN accounts a ON a.id=h.account_id WHERE h.record_id=? ORDER BY h.sequence", id)
+	rows, err := a.DB.Query(`SELECT h.sequence,h.action,h.timestamp,a.name,
+		CASE WHEN h.action='withdrawn' THEN json_extract(h.values_json,'$.reason') ELSE NULL END
+		FROM history h JOIN accounts a ON a.id=h.account_id WHERE h.record_id=? ORDER BY h.sequence`, id)
 	if err != nil {
 		fail(w, 503, "unavailable")
 		return
@@ -491,11 +599,16 @@ func (a *API) history(w http.ResponseWriter, id string, actor *Account) {
 	for rows.Next() {
 		var sequence int
 		var action, timestamp, name string
-		if rows.Scan(&sequence, &action, &timestamp, &name) != nil {
+		var reason sql.NullString
+		if rows.Scan(&sequence, &action, &timestamp, &name, &reason) != nil {
 			fail(w, 503, "unavailable")
 			return
 		}
-		entries = append(entries, map[string]any{"sequence": sequence, "action": action, "timestamp": timestamp, "actor": name})
+		entry := map[string]any{"sequence": sequence, "action": action, "timestamp": timestamp, "actor": name}
+		if reason.Valid {
+			entry["reason"] = reason.String
+		}
+		entries = append(entries, entry)
 	}
 	if rows.Err() != nil {
 		fail(w, 503, "unavailable")
