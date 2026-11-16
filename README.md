@@ -54,6 +54,14 @@ The executable accepts `--serve` to run the local HTTP service at `127.0.0.1:300
 
 For staging, build the standalone Go API with `go build ./cmd/campus-server` from the `desktop` directory. It runs without Wails and requires an absolute `CAMPUS_DATA_DIR` on persistent storage. It listens on `127.0.0.1:3000` for an HTTPS reverse proxy and issues Secure session cookies. The staging command has no web account setup. Initialize the course roster locally on the server using `-init-test-accounts` and four distinct test passwords on standard input, ordered student, reception, affairs, admin.
 
+The production configuration templates are in `desktop/deploy`. Set `APP_ORIGIN` to the public HTTPS origin in the service environment and `CLAF_API_HOST` to its hostname when loading the Caddy configuration. The Go API limits found-item multipart uploads to one JPEG or PNG of at most 10 MB and stores at most 1 MB in SQLite with the item and history. Use an absolute new file path with `-backup` for a consistent SQLite snapshot that includes photos. Lost-report attachments and the photo controls in the desktop and web apps are pending.
+
+The `campus-backup.timer` and `campus-backup.service` templates schedule a verified private SQLite snapshot on the first and third Sundays at 02:00 Dubai time. Snapshots are stored in `/var/lib/claf-backups`. Keep an off-VM copy and verify that it can be restored.
+
+The server supports FR-017 administrator-only withdrawal with a required reason. Withdrawal removes the item from the directory and preserves the record, photo and history. The desktop withdrawal control and integration with future claim eligibility remain pending. M3 Q-13 remains open.
+
+Set `CAMPUS_SIGNUP=true` in the hosted service to enable username-and-password registration for campus roles. Signup is an extension to the original course workflow. The default simulated account mode remains available for CON-002. Google sign-in is pending.
+
 ### Verification
 
 Nine Go backend tests pass. The release Windows executable has been opened, signed in and used to read a persisted item. Initial whole-process-tree measurement: 87.09 MiB private working set, 260.20 MiB private committed memory, 410.40 MiB summed working sets across seven processes. Summed working sets include shared pages. This is one sample, not a performance guarantee or a comparison with Electron.

@@ -1,0 +1,19 @@
+[Unit]
+Description=Snapshot Campus Lost & Found records and photos
+
+[Service]
+Type=oneshot
+User=claf
+Group=claf
+Environment=CAMPUS_DATA_DIR=/var/lib/claf
+Environment=GOMEMLIMIT=384MiB
+ExecStartPre=/usr/bin/test -s /var/lib/claf/campus.db
+ExecStart=/bin/sh -ec 'exec /usr/local/bin/campus-server -backup /var/lib/claf-backups/campus-$$(/usr/bin/date -u +%%Y%%m%%dT%%H%%M%%SZ).db'
+StateDirectory=claf claf-backups
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+TimeoutStartSec=10min

@@ -1,21 +1,22 @@
 # Test map and production gates
 
-The nine automated tests cover iteration 1. The Windows preview is with friends. Collect structured pass/fail results using the [feedback form](FEEDBACK.md) as testing continues.
+The original nine automated tests cover the Windows preview workflows. Stage 0 adds backend coverage for found-item photos, trusted proxy identity, and snapshot recovery. Collect structured pass/fail results using the [feedback form](FEEDBACK.md) as testing continues.
 
 The iteration column below refers to the original preview plan. Use the [M2 requirements register](m2-requirements.md) for the current stage assignment and the [diagram checks](milestone-coverage.md) for M3 evidence.
 
 | Area | Evidence now | Still required | Iteration |
 | --- | --- | --- | --- |
-| Credentials and roles | Backend test passes; Windows sign-in observed | Fresh-machine setup, expiry/logout/session revocation, rate-limit boundaries, deployed cookie behavior | 1 / 5 |
+| Credentials and roles | Backend checks cover test login and opt-in campus self-signup, including role and password storage checks. Windows sign-in observed in the original preview. | Deployed HTTPS signup and login, native remote cookies, abuse tests and separate provider decision for Google sign-in. Retain simulated accounts for CON-002. | 0 / 1 / 5 |
 | Intake and directory | Validation, holding-point and pagination tests pass. Browser save and native read observed. | Friend test results, date/length boundaries, keyboard errors, full mobile matrix | 1 / 5 |
 | Private fields | Backend access tests pass | Each role on deployed service, attachments and exports when introduced | 1–5 |
 | Atomic save and retry | Concurrent duplicate, changed payload, history rollback and restart retry tests pass | Network interruption, disk-full/locked store, process termination and multi-client deployed tests | 1 / 5 |
-| Reports and photos | Not implemented | Real persistence, MIME/content checks, upload size/compression, private access, interrupted uploads | 2 |
+| Reports and photos | Found-item photo API tests cover the exact byte boundary, invalid/duplicate files, private reads, retry and transaction rollback | Azure upload through HTTPS, high-resolution phone images within the input cap, interrupted uploads, photo UI and lost-report photos. Review the 32 megapixel decode guard against DR-005 before release. | 0 / 2 |
 | Matching and claims | Not implemented | Deterministic suggestions, real claim state, duplicate protection, claimant visibility | 2 |
 | Verification and handover | Not implemented | Competing approvals, verification checks, rejection/review, authorization, repeat handover and rollback | 3 |
 | Custody and dispositions | Not implemented | Transfers, contact attempts, permitted terminal states, atomic history; resolve Q-12/Q-13 before affected behavior | 4 |
-| Backup and restore | Not demonstrated | Restore database and photos together; validate integrity and permissions after recovery | 4 / 5 |
-| Our hosted service | Not deployed | Provider selection, persistent storage, HTTPS, secrets, setup disabled publicly, remote sessions, independent clients sharing records, monitoring and restart/recovery | 5, groundwork earlier |
+| Backup and restore | Local snapshot reopened with the same photo bytes, records, history and retry data. Systemd timer prepared for the first and third Sundays at 02:00 Dubai time. | Validate timer and first scheduled snapshot on Azure. Verify an off-VM copy, restore under the full M2 fixture, restored access checks and recovery timing. | 0 / 5 |
+| Directory withdrawal | Backend tests cover FR-017 removal from search, admin access, retained photo/history, retry and rollback. No permanent business-record delete route. | Add the admin control and integrate with claim and match eligibility. Approved-claim handling remains open under M3 Q-13. | 0 / 1 |
+| Our hosted service | Azure staging VM exists. Hardened units, Caddy configuration and a checked installer are prepared locally. | Install the reviewed build; verify HTTPS, persistent disk, authenticated remote sessions, independent clients sharing records, runtime memory, monitoring and restart/recovery | 0 / 5 |
 | Windows release | Local executable builds and runs | Clean machine, installer/update behavior, signature/distribution decision, WebView prerequisite and upgrade checks | 5 |
 | Linux release | Not built | Build/package, install, native WebKit behavior, keyboard, storage paths and supported distributions | 5 |
 | Browser/mobile/accessibility | Responsive layout implemented | 360px workflow, supported browser matrix, keyboard-only and screen-reader audit, focus/error handling and contrast | 5 |
@@ -31,4 +32,4 @@ Use M2 section 3.3.1's full RD/RL definitions. Selected targets: 20 concurrent s
 
 Production-ready remains the required destination, not the status of this preview. All implemented business workflows must pass their authorization, atomicity, failure and deployment checks. Windows and Linux evidence, backup restoration, shared-server behavior and baseline acceptance evidence are release gates. Open policy questions must be resolved or affected operations explicitly withheld. No invented deployment status, uptime or performance claims.
 
-The user confirmed that RIT does not provide hosting. We will operate our own service on an external host. No provider account, paid subscription or public deployment has been created. Free hosting must be evaluated against persistence, sleep/reclamation and recovery requirements. A local copy on each friend's laptop is not the shared production architecture.
+RIT hosting is unavailable. The shared service targets the Azure for Students staging VM. Deployment evidence for this release increment is pending. Check Azure costs, persistence and recovery against the baseline before the course release.

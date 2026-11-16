@@ -1,0 +1,22 @@
+{
+	servers {
+		timeouts {
+			read_header 5s
+			read_body 15s
+			write 25s
+			idle 60s
+		}
+		max_header_size 32768
+	}
+}
+
+{$CLAF_API_HOST} {
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+	handle {
+		respond 404
+	}
+}

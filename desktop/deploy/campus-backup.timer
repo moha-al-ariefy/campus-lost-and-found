@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up Campus Lost & Found every two to three weeks
+
+[Timer]
+OnCalendar=Sun *-*-01..07 02:00:00 Asia/Dubai
+OnCalendar=Sun *-*-15..21 02:00:00 Asia/Dubai
+Persistent=true
+
+[Install]
+WantedBy=timers.target

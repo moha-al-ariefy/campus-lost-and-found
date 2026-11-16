@@ -11,13 +11,16 @@
     </section>
     <section class="login-form-region">
       <form (ngSubmit)="signIn()" class="login-form">
-        <span class="pill">{{ t.testLabel }}</span><h2>{{ needsSetup() ? t.setupTitle : t.loginTitle }}</h2><p class="muted">{{ needsSetup() ? t.setupHint : t.loginHint }}</p>
+        <span class="pill">{{ t.testLabel }}</span><h2>{{ needsSetup() ? t.setupTitle : signingUp() ? t.createAccount : t.loginTitle }}</h2><p class="muted">{{ needsSetup() ? t.setupHint : signingUp() ? t.signupHint : t.loginHint }}</p>
         @if (setupMessage()) { <div class="success-banner" role="status">{{ setupMessage() }}</div> }
         @if (error()) { <div class="error-banner" role="alert">{{ error() }}</div> }
-        @if (!needsSetup()) { <label for="login">{{ t.login }}</label><input id="login" name="login" [(ngModel)]="loginName" autocomplete="username" required maxlength="100"> }
-        <label for="password">{{ needsSetup() ? t.setupPassword : t.password }}</label><input id="password" name="password" type="password" [(ngModel)]="password" [attr.autocomplete]="needsSetup() ? 'new-password' : 'current-password'" required [minlength]="needsSetup() ? 12 : 1" maxlength="200">
-        <button type="submit" class="primary full" [disabled]="busy()">{{ busy() ? t.signingIn : needsSetup() ? t.setupButton : t.signIn }} <span aria-hidden="true">→</span></button>
-        @if (!needsSetup()) { <p class="login-notice">{{ t.setupAccountHint }}</p> }
+        @if (signingUp()) { <label for="display-name">{{ t.signupName }}</label><input id="display-name" name="displayName" [(ngModel)]="displayName" autocomplete="nickname" required maxlength="80"> }
+        @if (!needsSetup()) { <label for="login">{{ signingUp() ? t.signupLogin : t.login }}</label><input id="login" name="login" [(ngModel)]="loginName" autocomplete="username" required [maxlength]="signingUp() ? 40 : 100"> }
+        <label for="password">{{ needsSetup() || signingUp() ? t.setupPassword : t.password }}</label><input id="password" name="password" type="password" [(ngModel)]="password" [attr.autocomplete]="needsSetup() || signingUp() ? 'new-password' : 'current-password'" required [minlength]="needsSetup() ? 12 : signingUp() ? 15 : 1" maxlength="200">
+        <button type="submit" class="primary full" [disabled]="busy()">{{ busy() ? (signingUp() ? t.creatingAccount : t.signingIn) : needsSetup() ? t.setupButton : signingUp() ? t.createAccount : t.signIn }} <span aria-hidden="true">→</span></button>
+        @if (signupEnabled() && !needsSetup()) {
+          <button type="button" class="secondary full" [disabled]="busy()" (click)="showSignup(!signingUp())">{{ signingUp() ? t.backToSignIn : t.createAccount }}</button>
+        } @else if (!needsSetup()) { <p class="login-notice">{{ t.setupAccountHint }}</p> }
         <p class="login-notice">{{ t.loginNotice }}</p>
       </form>
     </section>
