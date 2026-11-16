@@ -44,7 +44,7 @@
         @if (success()) { <div class="success-banner" role="status">{{ success() }}</div> }
         @if (error() && view() !== 'intake') { <div class="error-banner" role="alert">{{ error() }}</div> }
         @if (view() === 'directory') {
-          <div class="page-heading"><div><span class="eyebrow">{{ t.directory }}</span><h1>{{ t.directoryTitle }}</h1><p>{{ t.directoryHint }}</p></div>@if (account()!.role !== 'campus') { <button class="primary" (click)="showIntake()"><span aria-hidden="true">＋</span>{{ t.intake }}</button> }
+          <div class="page-heading"><div><span class="eyebrow">{{ t.directory }}</span><h1>{{ t.directoryTitle }}</h1><p>{{ t.directoryHint }}</p>@if (account()!.role === 'campus') { <p>{{ t.staffIntakeHint }}</p> }</div>@if (account()!.role !== 'campus') { <button class="primary" (click)="showIntake()"><span aria-hidden="true">＋</span>{{ t.intake }}</button> }
           </div>
           <form class="filters" (ngSubmit)="search()">
             <div class="filter-field location-field"><label for="filter-location">{{ t.location }}</label><input id="filter-location" name="location" [(ngModel)]="filters.location" [placeholder]="t.locationHint"></div>
@@ -80,6 +80,14 @@
                   <div class="detail-title"><span class="item-icon large" aria-hidden="true">◇</span><span class="status">{{ t.open }}</span></div><h2>{{ categoryName(item.category) }}</h2><p class="detail-location">{{ item.location }}</p>
                   <dl><dt>{{ t.foundOn }}</dt><dd>{{ item.dateFound | date:'dd MMM yyyy' }}</dd><dt>{{ t.heldAt }}</dt><dd>{{ pointName(item.holdingPoint) }}</dd><dt>{{ t.reference }}</dt><dd class="reference">{{ item.id }}</dd></dl>
                   @if (item.description !== undefined) {
+                    @if (itemPhotoUrl(item); as photoUrl) {
+                      @if (photoReadFailed()) {
+                        <p role="status">{{ t.photoUnavailable }}</p>
+                        <button type="button" class="secondary" (click)="retryDetail()">{{ t.retry }}</button>
+                      } @else {
+                        <img class="item-photo" [src]="photoUrl" [alt]="t.photo" (error)="photoReadFailed.set(true)">
+                      }
+                    }
                     <div class="private-block"><h3>{{ t.privateDetails }}</h3><p class="hint">{{ t.privateHint }}</p><dl><dt>{{ t.description }}</dt><dd>{{ item.description }}</dd><dt>{{ t.identifyingDetails }}</dt><dd>{{ item.identifyingDetails || t.notProvided }}</dd><dt>{{ t.receivedAt }}</dt><dd>{{ item.receivedAt?.replace('T', ' ') }}<small>{{ t.receivedHint }}</small></dd><dt>{{ t.color }} / {{ t.brand }} / {{ t.building }}</dt><dd>{{ item.color || t.notProvided }} / {{ item.brand || t.notProvided }} / {{ item.building || t.notProvided }}</dd></dl></div>
                   } @else { <p class="privacy-note">{{ t.noPrivate }}</p> }
                   @if (history().length) { <div class="activity"><h3>{{ t.history }}</h3>@for (entry of history(); track entry.sequence) { <p><strong>{{ t.created }}</strong><span>{{ entry.actor }}</span><small>{{ entry.timestamp | date:'dd MMM yyyy, HH:mm':'+0400' }}</small></p> }</div> }
@@ -104,8 +112,23 @@
             <fieldset [disabled]="busy() || uncertain()"><legend>{{ t.moreDetails }} <span>{{ t.optional }}</span></legend><p class="section-hint">{{ t.moreHint }}</p><div class="form-grid three">
               <div class="field"><label for="color">{{ t.color }}</label><input id="color" name="color" [(ngModel)]="form.color" maxlength="500"></div><div class="field"><label for="brand">{{ t.brand }}</label><input id="brand" name="brand" [(ngModel)]="form.brand" maxlength="500"></div><div class="field"><label for="building">{{ t.building }}</label><input id="building" name="building" [(ngModel)]="form.building" maxlength="500"></div>
               <div class="field wide"><label for="identifyingDetails">{{ t.identifyingDetails }}</label><textarea id="identifyingDetails" name="identifyingDetails" [(ngModel)]="form.identifyingDetails" maxlength="500" rows="3"></textarea><small>{{ t.identifyingHint }}</small></div>
+              <div class="field wide">
+                <label for="intake-photo">{{ t.photo }} · {{ t.optional }}</label>
+                <input id="intake-photo" type="file" accept="image/jpeg,image/png" #photoInput
+                  (change)="selectPhoto(photoInput)" aria-describedby="intake-photo-help">
+                <small id="intake-photo-help">{{ t.photoHint }}</small>
+                @if (photoError()) {
+                  <p class="error-banner" role="alert">{{ photoError() }}</p>
+                  <button class="secondary" type="button" (click)="removePhoto()">{{ t.skipPhoto }}</button>
+                }
+                @if (photoPreview(); as preview) {
+                  <img class="item-photo" [src]="preview.url" [alt]="t.photoPreview">
+                  <small>{{ preview.name }}</small>
+                  <button class="secondary" type="button" (click)="removePhoto()">{{ t.removePhoto }}</button>
+                }
+              </div>
             </div></fieldset>
-            <div class="form-footer"><p>{{ t.requiredHint }}</p><div><button class="text-button" type="button" (click)="showDirectory()" [disabled]="busy()">{{ t.cancel }}</button><button type="submit" class="primary" [disabled]="busy()">{{ busy() ? t.saving : uncertain() ? t.checkSubmission : t.save }} <span aria-hidden="true">→</span></button></div></div>
+            <div class="form-footer"><p>{{ t.requiredHint }}</p><div><button class="text-button" type="button" (click)="showDirectory()" [disabled]="busy()">{{ t.cancel }}</button><button type="submit" class="primary" [disabled]="busy() || !!photoError()">{{ busy() ? t.saving : uncertain() ? t.checkSubmission : t.save }} <span aria-hidden="true">→</span></button></div></div>
           </form>
         }
         <footer class="workspace-footer"><span>{{ t.course }}</span><span>{{ t.iteration }}</span></footer>

@@ -17,6 +17,8 @@ M1 defines the domain, actors and scope. M2 v1.0 defines requirements and accept
 
 Use M2 Appendix A for the full crosswalk, including overlapping IDs. The [M2 register](m2-requirements.md) includes every requirement record, including interface, data, constraints and quality. Track future work and exclusions from M1 A4 and M2 §2.6 as scope decisions. Physical storage, identity checks and signed receipt handling stay manual. Police involvement uses manually recorded references. The project uses labelled test accounts and the M2 staff-assisted visitor workflow.
 
+Finish the shared service and the core intake, report, search, claim and handover workflows first. Carry every committed M1–M3 requirement through implementation and acceptance. Schedule milestone-deferred features after the core, including SC-16 AI image matching. The core matching requirement is FR-019's attribute comparison.
+
 ## Diagram checks
 
 PDF pages below are one-based. The original figures remain in the source milestone PDFs. Link the implemented Go modules, Angular screens, storage constraints and test evidence to the figure IDs as work lands.

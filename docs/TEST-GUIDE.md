@@ -2,7 +2,7 @@
 
 Team LAMNZ · RIT Dubai SWEN 261 final project · Iteration 1
 
-Allow about 10 minutes. This is a local Windows test build, not the production release. Each computer has its own records. There is no shared server yet. Use invented test items only.
+Allow about 10 minutes. These steps are for the local Windows preview, where each computer has its own records. Use invented test items only.
 
 **To add a found item:** sign in as `reception` or `affairs` using the password you chose during setup. Select **Record an item** from the sidebar or the top of **Found items**. Fill in the category, description, general location, date found and received time, confirm the holding point, then select **Save found item**. The `student` account can search the directory.
 
@@ -24,15 +24,15 @@ Allow about 10 minutes. This is a local Windows test build, not the production r
 
 1. Enter an incorrect password. Expect an error, not a signed-in screen.
 2. Sign in as `reception`. Select **Record an item**. Try saving with required fields missing; expect validation and no saved record.
-3. Create an Electronics item, general location `Library - TEST`, description `TEST headphones`, and identifying detail `TEST blue tape inside case`. Use today's found date and a valid received time. Keep clues out of the public location. Save once and record its reference.
+3. Create an Electronics item, general location `Library - TEST`, description `TEST headphones`, and identifying detail `TEST blue tape inside case`. Use today's found date and a valid received time. If the build has an **Item photo** field, attach a test JPEG or PNG and check the preview. Keep clues out of the public location. Save once and record its reference.
 4. Search by `Library - TEST`, category and holding point. Expect your item. Search for an unrelated location; expect no results. Clear filters; expect the item again.
-5. Open the item as its creator. Expect the description and private clue. Close and reopen the app, sign in if needed, and find the same reference. No duplicate should appear.
-6. Sign out and sign in as `student`. Find the same record. Expect only directory details; neither the private description nor blue-tape clue should appear. There should be no intake action.
+5. Open the item as its creator. Expect the description, private clue and any attached photo. Close and reopen the app, sign in if needed, and find the same reference. Expect exactly one record.
+6. Sign out and sign in as `student`. Find the same record. Expect only directory details. The private description, blue-tape clue, photo and intake action should be hidden.
 7. Sign in as `affairs`. The reception item's clues should remain private. Any new intake must use the assigned Student Affairs holding point.
-8. Sign in as `admin`. Expect the item's private details and its creation activity.
+8. Sign in as `admin`. Expect the item's private details, any attached photo and its creation activity.
 9. Use Tab, Shift+Tab, Enter and the arrow keys through sign-in, filters and intake. Resize the window. Report anything clipped, unreadable, slow or unreachable.
 
-Report a check as PASS, FAIL or NOT RUN. A button looking correct does not count as a pass. Reports, photos, claims and handover are not in this build.
+Report each check as PASS, FAIL or NOT RUN. Lost reports, claims and handover remain in development.
 
 ## Send back
 

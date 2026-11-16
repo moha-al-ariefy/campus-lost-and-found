@@ -9,6 +9,12 @@ class ApiError extends Error {
   constructor(public code: string, public status = 0, public fields: string[] = []) { super(code); }
 }
 
+interface IntakeSubmission {
+  key: string;
+  data: Intake;
+  photo: File | null;
+}
+
 @Component({
   selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe],
   templateUrl: './app.html'
@@ -36,6 +42,9 @@ export class App {
   readonly history = signal<{ sequence: number; action: string; timestamp: string; actor: string }[]>([]);
   readonly view = signal<'directory' | 'intake'>('directory');
   readonly uncertain = signal(false);
+  readonly photoPreview = signal<{ name: string; url: string } | null>(null);
+  readonly photoError = signal('');
+  readonly photoReadFailed = signal(false);
   readonly categories = signal<string[]>([]);
   readonly points = signal<string[]>([]);
   loginName = '';
@@ -43,7 +52,8 @@ export class App {
   password = '';
   filters = { category: '', location: '', holdingPoint: '', from: '', to: '' };
   form: Intake = this.blankForm();
-  private submission: { key: string; data: Intake } | null = null;
+  private intakePhoto: File | null = null;
+  private submission: IntakeSubmission | null = null;
   private queryVersion = 0;
   private detailVersion = 0;
   private selectedId = '';
@@ -62,16 +72,21 @@ export class App {
   }
 
   private async api<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const headers = new Headers(options.headers);
+    headers.set('X-Campus-Request', '1');
+    if (typeof options.body === 'string' && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
     let response: Response;
     try {
       response = await fetch('/api' + path, { ...options, credentials: 'same-origin', signal: AbortSignal.timeout(10000),
-        headers: { 'Content-Type': 'application/json', 'X-Campus-Request': '1', ...options.headers } });
+        headers });
     } catch { throw new ApiError('network'); }
     const data = await response.json().catch(() => ({ code: 'unavailable' }));
     if (!response.ok) {
       if (response.status === 401 && path !== '/login') {
         this.account.set(null); this.items.set([]); this.selected.set(null); this.history.set([]);
-        this.form = this.blankForm(); this.submission = null; this.uncertain.set(false);
+        this.resetIntake();
         this.detailVersion++; this.queryVersion++;
         this.error.set(this.t.errors.sessionExpired);
       }
@@ -130,7 +145,7 @@ export class App {
       await this.api('/logout', { method: 'POST', body: '{}' });
       this.queryVersion++; this.detailVersion++;
       this.account.set(null); this.items.set([]); this.selected.set(null); this.history.set([]);
-      this.form = this.blankForm(); this.submission = null; this.uncertain.set(false); this.success.set('');
+      this.resetIntake(); this.success.set('');
       this.filters = { category: '', location: '', holdingPoint: '', from: '', to: '' };
     } catch (error) { this.error.set(this.message(error)); }
     finally { this.busy.set(false); }
@@ -160,6 +175,7 @@ export class App {
   async openItem(id: string): Promise<void> {
     const version = ++this.detailVersion;
     this.selectedId = id; this.detailLoading.set(true); this.detailError.set(''); this.selected.set(null); this.history.set([]);
+    this.photoReadFailed.set(false);
     try {
       const result = await this.api<{ item: Item }>('/items/' + encodeURIComponent(id));
       if (version !== this.detailVersion) return;
@@ -184,13 +200,61 @@ export class App {
     return { category: '', description: '', location: '', dateFound: now.slice(0, 10), receivedAt: now.slice(0, 16), holdingPoint: '', identifyingDetails: '', color: '', brand: '', building: '' };
   }
 
+  selectPhoto(input: HTMLInputElement): void {
+    const file = input.files?.item(0);
+    input.value = '';
+    if (!file || this.busy() || this.uncertain()) return;
+    this.removePhoto();
+    if (file.size > 10_000_000) {
+      this.photoError.set(this.t.errors.photoTooLarge);
+      return;
+    }
+    if (file.size === 0 || (file.type && !['image/jpeg', 'image/png'].includes(file.type))) {
+      this.photoError.set(this.t.errors.invalidPhoto);
+      return;
+    }
+    this.intakePhoto = file;
+    this.photoPreview.set({ name: file.name, url: URL.createObjectURL(file) });
+  }
+
+  removePhoto(): void {
+    const preview = this.photoPreview();
+    if (preview) URL.revokeObjectURL(preview.url);
+    this.intakePhoto = null;
+    this.photoPreview.set(null);
+    this.photoError.set('');
+  }
+
+  itemPhotoUrl(item: Item): string | null {
+    const path = '/api/items/' + encodeURIComponent(item.id) + '/photo';
+    return item.photoUrl === path ? path : null;
+  }
+
+  private resetIntake(): void {
+    this.form = this.blankForm();
+    this.submission = null;
+    this.uncertain.set(false);
+    this.removePhoto();
+  }
+
+  private intakeBody(submission: IntakeSubmission): string | FormData {
+    const metadata = JSON.stringify(submission.data);
+    if (!submission.photo) return metadata;
+    const body = new FormData();
+    body.append('item', metadata);
+    body.append('photo', submission.photo);
+    return body;
+  }
+
   async save(): Promise<void> {
-    if (this.busy()) return;
+    if (this.busy() || this.photoError()) return;
     this.busy.set(true); this.error.set(''); this.invalidFields.set([]);
-    if (!this.submission) this.submission = { key: crypto.randomUUID(), data: { ...this.form } };
+    if (!this.submission) this.submission = { key: crypto.randomUUID(), data: { ...this.form }, photo: this.intakePhoto };
     try {
-      const result = await this.api<{ item: Item }>('/items', { method: 'POST', headers: { 'Idempotency-Key': this.submission.key }, body: JSON.stringify(this.submission.data) });
-      this.submission = null; this.uncertain.set(false); this.form = this.blankForm();
+      const result = await this.api<{ item: Item }>('/items', {
+        method: 'POST', headers: { 'Idempotency-Key': this.submission.key }, body: this.intakeBody(this.submission),
+      });
+      this.resetIntake();
       this.success.set(this.t.saved); this.view.set('directory');
       await this.search(); await this.openItem(result.item.id);
     } catch (error) {

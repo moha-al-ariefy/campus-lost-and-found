@@ -36,15 +36,16 @@ func run() error {
 	if dataDirectory == "" || !filepath.IsAbs(dataDirectory) {
 		return errors.New("CAMPUS_DATA_DIR must be an absolute path on persistent storage")
 	}
-	db, err := backend.OpenStore(filepath.Join(dataDirectory, "campus.db"))
+	databaseFile := filepath.Join(dataDirectory, "campus.db")
+	if *backup != "" {
+		return backend.BackupFile(databaseFile, *backup)
+	}
+	db, err := backend.OpenStore(databaseFile)
 	if err != nil {
 		return fmt.Errorf("open campus database: %w", err)
 	}
 	defer db.Close()
 
-	if *backup != "" {
-		return backend.BackupStore(db, *backup)
-	}
 	if *initialize {
 		var passwords [4]string
 		reader := bufio.NewScanner(os.Stdin)

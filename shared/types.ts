@@ -9,6 +9,7 @@ export interface Item extends PublicItem {
   brand?: string;
   building?: string;
   creatorId?: string;
+  photoUrl?: string;
 }
 export interface Intake {
   category: string;

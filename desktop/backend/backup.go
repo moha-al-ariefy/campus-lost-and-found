@@ -4,9 +4,39 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 )
+
+// BackupFile reads the existing store without opening it for schema changes.
+func BackupFile(source, destination string) error {
+	if !filepath.IsAbs(source) {
+		return errors.New("backup source must be an absolute path")
+	}
+	info, err := os.Stat(source)
+	if err != nil {
+		return fmt.Errorf("locate backup source: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Size() == 0 {
+		return errors.New("backup source must be a nonempty campus database file")
+	}
+	path := url.URL{Path: filepath.ToSlash(source)}
+	db, err := sql.Open("sqlite", "file:"+path.EscapedPath()+"?mode=ro&_pragma=busy_timeout(5000)")
+	if err != nil {
+		return fmt.Errorf("open backup source: %w", err)
+	}
+	defer db.Close()
+	var tables int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_schema
+		WHERE type='table' AND name IN ('accounts','items','history')`).Scan(&tables); err != nil {
+		return fmt.Errorf("read backup source schema: %w", err)
+	}
+	if tables != 3 {
+		return errors.New("backup source is missing the campus database tables")
+	}
+	return BackupStore(db, destination)
+}
 
 func BackupStore(db *sql.DB, destination string) error {
 	if !filepath.IsAbs(destination) {

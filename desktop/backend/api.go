@@ -27,7 +27,8 @@ type API struct {
 	AllowedOrigin   string
 	TrustLocalProxy bool
 	EnableSignup    bool
-	photoSlots      chan struct{}
+	photoUploads    chan struct{}
+	photoDecoder    chan struct{}
 	loginSlots      chan struct{}
 	mu              sync.Mutex
 	attempts        map[string]attempt
@@ -53,7 +54,7 @@ type Intake struct {
 func NewAPI(db *sql.DB) *API {
 	return &API{
 		DB: db, attempts: make(map[string]attempt),
-		photoSlots: make(chan struct{}, 1), loginSlots: make(chan struct{}, 4),
+		photoUploads: make(chan struct{}, 4), photoDecoder: make(chan struct{}, 1), loginSlots: make(chan struct{}, 4),
 	}
 }
 func hash(value string) string {
@@ -489,11 +490,10 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 	var data Intake
 	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/") {
 		select {
-		case a.photoSlots <- struct{}{}:
-			defer func() { <-a.photoSlots }()
+		case a.photoUploads <- struct{}{}:
+			defer func() { <-a.photoUploads }()
 		default:
-			w.Header().Set("Retry-After", "2")
-			fail(w, 503, "unavailable")
+			photoBusy(w)
 			return
 		}
 	}
@@ -517,8 +517,24 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 	fingerprint := intakeFingerprint(data, inputPhoto)
 	var photo itemPhoto
 	if inputPhoto != nil {
+		// A committed retry only needs the original response. Keep decoding outside the write transaction.
+		if replayIntake(w, a.DB, actor, key, fingerprint) {
+			return
+		}
+		if !a.waitForPhotoDecoder(w, r) {
+			return
+		}
+		defer func() { <-a.photoDecoder }()
+		// Another request may have committed while this one waited for the decoder.
+		if replayIntake(w, a.DB, actor, key, fingerprint) {
+			return
+		}
 		var err error
 		photo, err = reducePhoto(inputPhoto)
+		if errors.Is(err, errPhotoDimensions) {
+			fail(w, 400, "photoDimensions")
+			return
+		}
 		if err != nil {
 			fail(w, 400, "invalidPhoto")
 			return
@@ -530,23 +546,7 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 		return
 	}
 	defer tx.Rollback()
-	var previousHash, id string
-	err = tx.QueryRow("SELECT request_hash,item_id FROM submissions WHERE account_id=? AND submission_key=?", actor.ID, key).Scan(&previousHash, &id)
-	if err == nil {
-		if previousHash != fingerprint {
-			fail(w, 409, "submissionChanged")
-			return
-		}
-		item, err := loadItemView(tx, id, actor, true)
-		if err != nil {
-			fail(w, 503, "unavailable")
-			return
-		}
-		reply(w, 200, map[string]any{"item": item, "replayed": true})
-		return
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		fail(w, 503, "unavailable")
+	if replayIntake(w, tx, actor, key, fingerprint) {
 		return
 	}
 	random := make([]byte, 16)
@@ -554,7 +554,7 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 		fail(w, 503, "unavailable")
 		return
 	}
-	id = "CLF-" + hex.EncodeToString(random)
+	id := "CLF-" + hex.EncodeToString(random)
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
 	private := encode(map[string]any{"description": data.Description, "identifyingDetails": data.IdentifyingDetails, "receivedAt": data.ReceivedAt, "color": data.Color, "brand": data.Brand, "building": data.Building})
 	_, err = tx.Exec("INSERT INTO items(id,category,location,date_found,holding_point,creator_id,private_data,created_at) VALUES(?,?,?,?,?,?,?,?)", id, data.Category, data.Location, data.DateFound, data.HoldingPoint, actor.ID, private, timestamp)
@@ -580,6 +580,29 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 		return
 	}
 	reply(w, 201, map[string]any{"item": item, "replayed": false})
+}
+
+func replayIntake(w http.ResponseWriter, db queryer, actor *Account, key, fingerprint string) bool {
+	var previousHash, id string
+	err := db.QueryRow("SELECT request_hash,item_id FROM submissions WHERE account_id=? AND submission_key=?", actor.ID, key).Scan(&previousHash, &id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false
+	}
+	if err != nil {
+		fail(w, 503, "unavailable")
+		return true
+	}
+	if previousHash != fingerprint {
+		fail(w, 409, "submissionChanged")
+		return true
+	}
+	item, err := loadItemView(db, id, actor, true)
+	if err != nil {
+		fail(w, 503, "unavailable")
+		return true
+	}
+	reply(w, 200, map[string]any{"item": item, "replayed": true})
+	return true
 }
 
 func (a *API) history(w http.ResponseWriter, id string, actor *Account) {
