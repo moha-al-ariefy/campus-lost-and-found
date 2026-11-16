@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	"golang.org/x/image/draw"
 )
@@ -22,11 +24,36 @@ const (
 	maxStoredPhoto = 1_000_000
 	maxIntakeJSON  = 32_768
 	maxPhotoPixels = 32_000_000
+	maxCameraJPEG  = 50_000_000
 )
+
+var errPhotoDimensions = errors.New("photo exceeds the decode limit")
 
 type itemPhoto struct {
 	content []byte
 	mime    string
+}
+
+// Read several bounded request bodies while keeping decoded images to one at a time.
+func (a *API) waitForPhotoDecoder(w http.ResponseWriter, r *http.Request) bool {
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case a.photoDecoder <- struct{}{}:
+		if r.Context().Err() == nil {
+			return true
+		}
+		<-a.photoDecoder
+	case <-timer.C:
+	case <-r.Context().Done():
+	}
+	photoBusy(w)
+	return false
+}
+
+func photoBusy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "2")
+	fail(w, http.StatusServiceUnavailable, "unavailable")
 }
 
 func readIntake(w http.ResponseWriter, r *http.Request, data *Intake) ([]byte, bool) {
@@ -117,8 +144,12 @@ func intakeFingerprint(data Intake, photo []byte) string {
 func reducePhoto(input []byte) (itemPhoto, error) {
 	config, format, err := image.DecodeConfig(bytes.NewReader(input))
 	if err != nil || (format != "jpeg" && format != "png") || config.Width < 1 ||
-		config.Height < 1 || config.Width > maxPhotoPixels/config.Height {
-		return itemPhoto{}, errors.New("unsupported photo or dimensions")
+		config.Height < 1 {
+		return itemPhoto{}, errors.New("unsupported photo")
+	}
+	if config.Width > maxPhotoPixels/config.Height && (format != "jpeg" ||
+		config.Width > maxCameraJPEG/config.Height || !usesBaselineCameraSampling(input)) {
+		return itemPhoto{}, errPhotoDimensions
 	}
 	source, _, err := image.Decode(bytes.NewReader(input))
 	if err != nil {
@@ -154,4 +185,35 @@ func reducePhoto(input []byte) (itemPhoto, error) {
 		}
 		width, height = max(1, width*3/4), max(1, height*3/4)
 	}
+}
+
+// Baseline 4:2:0 JPEG needs fewer samples and has no progressive coefficient buffer.
+func usesBaselineCameraSampling(input []byte) bool {
+	const (
+		markerPrefix  = 0xff
+		baselineFrame = 0xc0
+		startScan     = 0xda
+		endOfImage    = 0xd9
+	)
+	// DecodeConfig already checked the start-of-image marker. Walk only pre-scan segments.
+	for remaining := input[2:]; len(remaining) >= 4 && remaining[0] == markerPrefix; {
+		for len(remaining) > 0 && remaining[0] == markerPrefix {
+			remaining = remaining[1:]
+		}
+		if len(remaining) < 3 || remaining[0] == startScan || remaining[0] == endOfImage {
+			return false
+		}
+		marker := remaining[0]
+		length := int(binary.BigEndian.Uint16(remaining[1:3]))
+		if length < 2 || length >= len(remaining) {
+			return false
+		}
+		if marker == baselineFrame {
+			frame := remaining[3 : 1+length]
+			return len(frame) == 15 && frame[0] == 8 && frame[5] == 3 &&
+				frame[7] == 0x22 && frame[10] == 0x11 && frame[13] == 0x11
+		}
+		remaining = remaining[1+length:]
+	}
+	return false
 }

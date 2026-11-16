@@ -2,15 +2,20 @@ package backend
 
 import (
 	"bytes"
+	"database/sql"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"math/rand/v2"
 	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func jpegFixture(t *testing.T, shade uint8) []byte {
@@ -25,6 +30,13 @@ func jpegFixture(t *testing.T, shade uint8) []byte {
 }
 
 func upload(t *testing.T, api *API, cookie, key string, photos ...[]byte) *httptest.ResponseRecorder {
+	t.Helper()
+	response := httptest.NewRecorder()
+	api.ServeHTTP(response, photoRequest(t, cookie, key, photos...))
+	return response
+}
+
+func photoRequest(t *testing.T, cookie, key string, photos ...[]byte) *http.Request {
 	t.Helper()
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -48,9 +60,71 @@ func upload(t *testing.T, api *API, cookie, key string, photos ...[]byte) *httpt
 	request.Header.Set("X-Campus-Request", "1")
 	request.Header.Set("Cookie", cookie)
 	request.Header.Set("Idempotency-Key", key)
-	response := httptest.NewRecorder()
-	api.ServeHTTP(response, request)
-	return response
+	return request
+}
+
+type pausedPhotoUpload struct {
+	io.ReadCloser
+	reading chan struct{}
+	resume  chan struct{}
+}
+
+func (body *pausedPhotoUpload) Read(buffer []byte) (int, error) {
+	select {
+	case <-body.reading:
+	default:
+		close(body.reading)
+	}
+	<-body.resume
+	return body.ReadCloser.Read(buffer)
+}
+
+func TestSlowPhotoBodyDoesNotBlockAnotherUpload(t *testing.T) {
+	api, db := fixture(t)
+	staff := login(t, api, "reception")
+	slow := photoRequest(t, staff, "photo-slow-first-upload", jpegFixture(t, 40))
+	body := &pausedPhotoUpload{ReadCloser: slow.Body, reading: make(chan struct{}), resume: make(chan struct{})}
+	slow.Body = body
+	slowResult := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		api.ServeHTTP(slowResult, slow)
+	}()
+	defer func() {
+		close(body.resume)
+		<-done
+		if !t.Failed() {
+			requireCode(t, slowResult, http.StatusCreated)
+			if count(t, db, "item_photos") != 2 || count(t, db, "history") != 2 {
+				t.Fatal("overlapping requests did not save both photos and history entries")
+			}
+		}
+	}()
+	select {
+	case <-body.reading:
+	case <-time.After(3 * time.Second):
+		t.Fatal("first upload did not reach its body")
+	}
+	fast := upload(t, api, staff, "photo-fast-next-upload", jpegFixture(t, 90))
+	requireCode(t, fast, http.StatusCreated)
+}
+
+func TestPhotoOverloadLeavesRequestRetryable(t *testing.T) {
+	api, db := fixture(t)
+	staff := login(t, api, "reception")
+	photo := jpegFixture(t, 60)
+	key := "photo-overload-submission"
+	for range cap(api.photoUploads) {
+		api.photoUploads <- struct{}{}
+	}
+	rejected := upload(t, api, staff, key, photo)
+	requireCode(t, rejected, http.StatusServiceUnavailable)
+	if rejected.Header().Get("Retry-After") != "2" || count(t, db, "submissions") != 0 {
+		t.Fatal("overload did not provide a safe retry")
+	}
+	<-api.photoUploads
+	requireCode(t, upload(t, api, staff, key, photo), http.StatusCreated)
 }
 
 func TestPhotoLimitPermissionsAndRetry(t *testing.T) {
@@ -92,8 +166,50 @@ func TestPhotoLimitPermissionsAndRetry(t *testing.T) {
 	requireCode(t, call(api, "GET", path, nil, login(t, api, "admin"), ""), 200)
 	requireCode(t, upload(t, api, staff, "photo-submission-001", photo), 200)
 	requireCode(t, upload(t, api, staff, "photo-submission-001", jpegFixture(t, 210)), 409)
+	requireCode(t, upload(t, api, staff, "photo-submission-001", []byte("not an image")), 409)
 	if count(t, db, "item_photos") != 2 || count(t, db, "history") != 2 {
 		t.Fatal("retry created an extra photo or history record")
+	}
+}
+
+func TestPhoneResolutionJPEGIsReduced(t *testing.T) {
+	api, _ := fixture(t)
+	staff := login(t, api, "reception")
+	source := image.NewYCbCr(image.Rect(0, 0, 8000, 6000), image.YCbCrSubsampleRatio420)
+	for index := range source.Y {
+		source.Y[index] = uint8(index / 8 % 223)
+	}
+	var input bytes.Buffer
+	if err := jpeg.Encode(&input, source, nil); err != nil {
+		t.Fatal(err)
+	}
+	if input.Len() > maxPhotoInput {
+		t.Fatal("camera fixture exceeds the upload limit", input.Len())
+	}
+	created := upload(t, api, staff, "photo-camera-resolution", input.Bytes())
+	requireCode(t, created, 201)
+	path := contents(t, created)["item"].(map[string]any)["photoUrl"].(string)
+	stored := call(api, "GET", path, nil, staff, "")
+	requireCode(t, stored, 200)
+	pixels, err := jpeg.Decode(bytes.NewReader(stored.Body.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Body.Len() > maxStoredPhoto || pixels.Bounds().Size() != image.Pt(1600, 1200) {
+		t.Fatal("phone photo was not reduced to the storage and dimension limits")
+	}
+	requireCode(t, upload(t, api, staff, "photo-camera-resolution", input.Bytes()), 200)
+
+	tooWide := bytes.Clone(input.Bytes())
+	frame := bytes.Index(tooWide, []byte{0xff, 0xc0})
+	if frame < 0 {
+		t.Fatal("camera fixture has no baseline frame")
+	}
+	tooWide[frame+7], tooWide[frame+8] = 0xff, 0xff
+	rejected := upload(t, api, staff, "photo-camera-oversize", tooWide)
+	requireCode(t, rejected, 400)
+	if contents(t, rejected)["code"] != "photoDimensions" {
+		t.Fatal("dimension rejection did not identify the problem")
 	}
 }
 
@@ -120,6 +236,92 @@ func TestPhotoRejectionAndAtomicFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	requireCode(t, upload(t, api, staff, key, photo), 201)
+}
+
+func TestLockedStoreLeavesPhotoSubmissionRetryable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "campus.db")
+	db, err := OpenStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := SeedAccounts(db, testPassword); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("PRAGMA busy_timeout=25"); err != nil {
+		t.Fatal(err)
+	}
+	api := NewAPI(db)
+	staff := login(t, api, "reception")
+	photo := jpegFixture(t, 140)
+	key := "photo-locked-store-retry"
+
+	writer, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	writer.SetMaxOpenConns(1)
+	if _, err := writer.Exec("BEGIN IMMEDIATE"); err != nil {
+		t.Fatal(err)
+	}
+	requireCode(t, upload(t, api, staff, key, photo), http.StatusServiceUnavailable)
+	for _, table := range []string{"items", "item_photos", "history", "submissions"} {
+		if count(t, db, table) != 0 {
+			t.Fatal("storage lock left data in", table)
+		}
+	}
+	if _, err := writer.Exec("ROLLBACK"); err != nil {
+		t.Fatal(err)
+	}
+	requireCode(t, upload(t, api, staff, key, photo), http.StatusCreated)
+	requireCode(t, upload(t, api, staff, key, photo), http.StatusOK)
+	for _, table := range []string{"items", "item_photos", "history", "submissions"} {
+		if count(t, db, table) != 1 {
+			t.Fatal("retry failed to save exactly once in", table)
+		}
+	}
+}
+
+func TestFullStorePreservesExistingRecordsAndAllowsPhotoRetry(t *testing.T) {
+	api, db := fixture(t)
+	staff := login(t, api, "reception")
+	prior := call(api, "POST", "/api/items", sample(), staff, "photo-full-prior-record")
+	requireCode(t, prior, http.StatusCreated)
+	priorID := contents(t, prior)["item"].(map[string]any)["id"].(string)
+	pixels := image.NewGray(image.Rect(0, 0, 320, 240))
+	random := rand.New(rand.NewPCG(9, 13))
+	for index := range pixels.Pix {
+		pixels.Pix[index] = byte(random.Uint32())
+	}
+	var input bytes.Buffer
+	if err := jpeg.Encode(&input, pixels, &jpeg.Options{Quality: 85}); err != nil {
+		t.Fatal(err)
+	}
+	var allocated, limit int
+	if err := db.QueryRow("PRAGMA page_count").Scan(&allocated); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(fmt.Sprintf("PRAGMA max_page_count=%d", allocated)).Scan(&limit); err != nil || limit != allocated {
+		t.Fatalf("could not pin SQLite to its current page count: limit=%d err=%v", limit, err)
+	}
+
+	key := "photo-full-store-retry"
+	requireCode(t, upload(t, api, staff, key, input.Bytes()), http.StatusServiceUnavailable)
+	requireCode(t, call(api, "GET", "/api/items/"+priorID, nil, staff, ""), http.StatusOK)
+	if count(t, db, "items") != 1 || count(t, db, "history") != 1 ||
+		count(t, db, "submissions") != 1 || count(t, db, "item_photos") != 0 {
+		t.Fatal("failed write changed existing records or left a partial photo submission")
+	}
+	if _, err := db.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", allocated+256)); err != nil {
+		t.Fatal(err)
+	}
+	requireCode(t, upload(t, api, staff, key, input.Bytes()), http.StatusCreated)
+	requireCode(t, upload(t, api, staff, key, input.Bytes()), http.StatusOK)
+	if count(t, db, "items") != 2 || count(t, db, "history") != 2 ||
+		count(t, db, "submissions") != 2 || count(t, db, "item_photos") != 1 {
+		t.Fatal("retry did not save the photo, item and history exactly once")
+	}
 }
 
 func TestLargePNGIsReducedAndStaysReadable(t *testing.T) {

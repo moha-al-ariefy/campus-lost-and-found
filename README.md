@@ -8,7 +8,7 @@ The project brings the reception/security desk and the Office of Student Affairs
 
 **Current status:** iteration 1 is ready for review. The Windows executable runs Angular in a system webview with a Go backend and SQLite storage. No Electron. Linux remains a required target; it has not been built or verified yet.
 
-Working now: course-account sign-in, server-side sessions and permissions, found-item intake, filtered directory, private intake details, administrator history and atomic retry-safe saves. Reports, photos, claims and handovers belong to later iterations.
+Working now: course-account sign-in, server-side sessions and permissions, found-item intake with an optional private photo, filtered directory, private intake details, administrator history and atomic retry-safe saves. Lost reports, claims and handovers remain in development.
 
 ## The workflow
 
@@ -28,7 +28,7 @@ These are planned capabilities from M2 and M3, not a claim that they are impleme
 
 ## Development
 
-Work proceeds through four stages: shared server, finished EXE, web version and production release. Mohammed reviews each stage and approves GitHub pushes explicitly. The Windows preview and standalone API source are available here. Azure deployment is pending.
+Work proceeds through four stages: shared server, finished EXE, web version and production release. Mohammed reviews each stage and approves GitHub pushes explicitly. The Windows preview and standalone API source are available here. The staging API is reachable over HTTPS. See the [test map](docs/test-map.md) for checks still due.
 
 ### Run the Windows build
 
@@ -50,11 +50,11 @@ Add the Go bin directory to PATH. The build wrapper also recognizes the workspac
 
 For browser development, run `npm run build:desktop-ui` first, set `CAMPUS_ALLOW_SETUP=true` for a new local test database, then run `npm run dev`. Open `http://127.0.0.1:4200`. Disable setup after initialization. `npm test` runs backend tests; `npm run check` runs Go vet.
 
-The executable accepts `--serve` to run the local HTTP service at `127.0.0.1:3000`. Public hosting, HTTPS deployment and the desktop remote-service mode still need integration validation. Do not expose the local setup server publicly.
+The executable accepts `--serve` to run the local HTTP service at `127.0.0.1:3000`. The desktop remote-service mode still needs end-to-end validation against staging. Keep the local setup server on loopback.
 
 For staging, build the standalone Go API with `go build ./cmd/campus-server` from the `desktop` directory. It runs without Wails and requires an absolute `CAMPUS_DATA_DIR` on persistent storage. It listens on `127.0.0.1:3000` for an HTTPS reverse proxy and issues Secure session cookies. The staging command has no web account setup. Initialize the course roster locally on the server using `-init-test-accounts` and four distinct test passwords on standard input, ordered student, reception, affairs, admin.
 
-The production configuration templates are in `desktop/deploy`. Set `APP_ORIGIN` to the public HTTPS origin in the service environment and `CLAF_API_HOST` to its hostname when loading the Caddy configuration. The Go API limits found-item multipart uploads to one JPEG or PNG of at most 10 MB and stores at most 1 MB in SQLite with the item and history. Use an absolute new file path with `-backup` for a consistent SQLite snapshot that includes photos. Lost-report attachments and the photo controls in the desktop and web apps are pending.
+The production configuration templates are in `desktop/deploy`. Set `APP_ORIGIN` to the public HTTPS origin in the service environment and `CLAF_API_HOST` to its hostname when loading the Caddy configuration. The Go API limits found-item multipart uploads to one JPEG or PNG of at most 10 MB and stores at most 1 MB in SQLite with the item and history. The decoder limit is 50 megapixels for baseline 4:2:0 JPEG and 32 megapixels for other supported images. Use an absolute new file path with `-backup` for a consistent SQLite snapshot that includes photos. Lost-report attachments are pending.
 
 The `campus-backup.timer` and `campus-backup.service` templates schedule a verified private SQLite snapshot on the first and third Sundays at 02:00 Dubai time. Snapshots are stored in `/var/lib/claf-backups`. Keep an off-VM copy and verify that it can be restored.
 
