@@ -1,0 +1,107 @@
+@if (success()) { <div class="success-banner" role="status">{{ success() }}</div> }
+@if (mode() === 'list') {
+  <div class="page-heading">
+    <div><h1>{{ account().role === 'admin' ? t.reports.allReports : t.reports.myReports }}</h1><p>{{ t.reports.intro }}</p></div>
+    <button class="primary" type="button" (click)="showForm()" [disabled]="busy()">{{ t.reports.newReport }}</button>
+  </div>
+  @if (busy()) { <p role="status">{{ t.reports.loading }}</p> }
+  @else if (error()) { <p class="error-banner" role="alert">{{ error() }}</p><button class="secondary" (click)="loadPage(listPage())">{{ t.retry }}</button> }
+  @else if (!reports().length) { <div class="empty-state"><p>{{ t.reports.empty }}</p></div> }
+  @else {
+    <div class="item-list">
+      @for (entry of reports(); track entry.id) {
+        <button class="item-row" type="button" (click)="openReport(entry.id)">
+          <span class="item-main"><strong>{{ categoryName(entry.category) }}</strong><span>{{ entry.dateLost | date:'dd MMM yyyy' }}</span>
+            @if (entry.assisted) { <span>{{ t.reports.visitorReport }}</span> }<small>{{ entry.id }}</small></span>
+        </button>
+      }
+    </div>
+    @if (listPage() > 1 || moreReports()) {
+      <div class="pagination"><button class="secondary" (click)="loadPage(listPage() - 1)" [disabled]="listPage() === 1">{{ t.previous }}</button>
+        <span>{{ t.page }} {{ listPage() }}</span><button class="secondary" (click)="loadPage(listPage() + 1)" [disabled]="!moreReports()">{{ t.next }}</button></div>
+    }
+  }
+} @else if (mode() === 'form') {
+  <div class="page-heading"><div><h1>{{ t.reports.newReport }}</h1><p>{{ t.reports.intro }}</p></div></div>
+  <form class="intake-form" (ngSubmit)="save()">
+    @if (error()) {
+      <div class="error-banner" id="report-form-error" role="alert" tabindex="-1"><p>{{ error() }}</p>
+        @if (invalid().length) {
+          <ul>@for (field of invalid(); track field) { <li><a [href]="'#report-' + field">{{ fieldName(field) }}</a></li> }</ul>
+        }
+      </div>
+    }
+    <fieldset [disabled]="busy() || uncertain()"><legend>{{ t.coreDetails }}</legend>
+      <div class="form-grid">
+        <div class="field"><label for="report-category">{{ t.category }}</label><select id="report-category" name="category" [(ngModel)]="form.category" required [attr.aria-invalid]="invalid().includes('category')">
+          <option value="" disabled>{{ t.chooseCategory }}</option>@for (category of categories(); track category) { <option [value]="category">{{ categoryName(category) }}</option> }
+        </select></div>
+        <div class="field"><label for="report-dateLost">{{ t.reports.dateLost }}</label><input type="date" id="report-dateLost" name="dateLost" [(ngModel)]="form.dateLost" required [attr.aria-invalid]="invalid().includes('dateLost')"></div>
+        <div class="field wide"><label for="report-description">{{ t.description }}</label><textarea id="report-description" name="description" rows="3" maxlength="2000" [(ngModel)]="form.description" aria-describedby="report-description-help" required [attr.aria-invalid]="invalid().includes('description')"></textarea>
+          <small id="report-description-help">{{ t.reports.descriptionHint }}</small></div>
+      </div>
+    </fieldset>
+    <fieldset [disabled]="busy() || uncertain()"><legend>{{ t.moreDetails }} <span>{{ t.optional }}</span></legend>
+      <div class="form-grid three">
+        <div class="field"><label for="report-color">{{ t.color }}</label><input id="report-color" name="color" maxlength="500" [(ngModel)]="form.color" [attr.aria-invalid]="invalid().includes('color')"></div>
+        <div class="field"><label for="report-brand">{{ t.brand }}</label><input id="report-brand" name="brand" maxlength="500" [(ngModel)]="form.brand" [attr.aria-invalid]="invalid().includes('brand')"></div>
+        <div class="field"><label for="report-building">{{ t.building }}</label><input id="report-building" name="building" maxlength="500" [(ngModel)]="form.building" [attr.aria-invalid]="invalid().includes('building')"></div>
+        <div class="field wide"><label for="report-contact">{{ t.reports.contact }}</label><input id="report-contact" name="contact" maxlength="200" [(ngModel)]="form.contact" aria-describedby="report-contact-help" [attr.aria-invalid]="invalid().includes('contact')"><small id="report-contact-help">{{ t.reports.contactHint }}</small></div>
+        @if (account().role !== 'campus') {
+          <div class="field wide"><label class="report-assisted"><input type="checkbox" name="assisted" [(ngModel)]="form.assisted" aria-describedby="report-assisted-help">{{ t.reports.assisted }}</label>
+            <small id="report-assisted-help">{{ t.reports.assistedHint }}</small></div>
+        }
+        <div class="field wide"><label for="report-photo">{{ t.photo }}</label><input id="report-photo" type="file" accept="image/jpeg,image/png" #photoInput (change)="selectPhoto(photoInput)" aria-describedby="report-photo-help">
+          <small id="report-photo-help">{{ t.reports.photoHint }}</small>
+          @if (photoError()) { <p class="error-banner" role="alert">{{ photoError() }}</p><button class="secondary" type="button" (click)="releasePhoto()">{{ t.skipPhoto }}</button> }
+          @if (preview()) {
+            <img class="item-photo" [src]="preview()" [alt]="t.photoPreview"><p class="hint">{{ fileName() }}</p>
+            <button class="secondary" type="button" (click)="releasePhoto()">{{ t.removePhoto }}</button>
+          }
+        </div>
+      </div>
+    </fieldset>
+    <div class="form-footer"><div><button class="text-button" type="button" (click)="loadPage(1)" [disabled]="busy() || uncertain()">{{ t.reports.back }}</button>
+      <button class="primary" type="submit" [disabled]="busy() || !!photoError()">{{ busy() ? t.saving : uncertain() ? t.checkSubmission : t.reports.save }}</button></div></div>
+  </form>
+} @else {
+  <button class="text-button" type="button" (click)="loadPage(listPage())" [disabled]="busy()">← {{ t.reports.back }}</button>
+  @if (busy()) { <p role="status">{{ t.reports.loading }}</p> }
+  @else if (error()) { <p class="error-banner" role="alert">{{ error() }}</p><button class="secondary" (click)="retryDetail()">{{ t.retry }}</button> }
+  @else if (report(); as entry) {
+    <div class="directory-layout with-detail report-detail">
+      <section class="detail-panel">
+        <h1>{{ categoryName(entry.category) }}</h1>
+        @if (entry.assisted) { <p>{{ t.reports.visitorReport }}</p> }
+        <dl><dt>{{ t.reference }}</dt><dd class="reference">{{ entry.id }}</dd><dt>{{ t.reports.dateLost }}</dt><dd>{{ entry.dateLost | date:'dd MMM yyyy' }}</dd>
+          <dt>{{ t.description }}</dt><dd>{{ entry.description }}</dd><dt>{{ t.color }} / {{ t.brand }} / {{ t.building }}</dt>
+          <dd>{{ entry.color || t.notProvided }} / {{ entry.brand || t.notProvided }} / {{ entry.building || t.notProvided }}</dd>
+          @if (entry.contact) { <dt>{{ t.reports.contact }}</dt><dd>{{ entry.contact }}</dd> }
+        </dl>
+        @if (reportPhoto(entry); as url) {
+          @if (photoFailed()) { <p role="status">{{ t.photoUnavailable }}</p><button class="secondary" (click)="retryDetail()">{{ t.retry }}</button> }
+          @else { <figure class="private-photo"><img class="item-photo" [src]="url" [alt]="t.photo" (error)="photoFailed.set(true)"></figure> }
+        }
+      </section>
+      <section class="results-region">
+        <h2>{{ t.reports.matches }}</h2><p>{{ t.reports.advisory }}</p>
+        @if (loadingMatches()) { <p role="status">{{ t.loading }}</p> }
+        @else if (matchError()) { <p class="error-banner" role="alert">{{ matchError() }}</p><button class="secondary" (click)="loadMatches(matchesPage())">{{ t.retry }}</button> }
+        @else if (!matches().length) { <p>{{ t.reports.noMatches }}</p> }
+        @else {
+          <div class="item-list">
+            @for (item of matches(); track item.id) {
+              <button class="item-row" type="button" (click)="viewItem.emit(item.id)"><span class="item-main">
+                <strong>{{ item.publicName || categoryName(item.category) }}</strong><span>{{ item.location }} · {{ pointName(item.holdingPoint) }}</span>
+                <small>{{ item.dateFound | date:'dd MMM yyyy' }}</small></span></button>
+            }
+          </div>
+          @if (matchesPage() > 1 || moreMatches()) {
+            <div class="pagination"><button class="secondary" (click)="loadMatches(matchesPage() - 1)" [disabled]="matchesPage() === 1">{{ t.previous }}</button>
+              <span>{{ t.page }} {{ matchesPage() }}</span><button class="secondary" (click)="loadMatches(matchesPage() + 1)" [disabled]="!moreMatches()">{{ t.next }}</button></div>
+          }
+        }
+      </section>
+    </div>
+  }
+}

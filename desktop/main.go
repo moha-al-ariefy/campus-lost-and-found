@@ -65,6 +65,9 @@ func main() {
 			log.Fatal(err)
 		}
 		defer db.Close()
+		if err := backend.LoadHoldingPeriod(db); err != nil {
+			log.Fatal(err)
+		}
 		localAPI := backend.NewAPI(db)
 		localAPI.AllowSetup = !*serve || os.Getenv("CAMPUS_ALLOW_SETUP") == "true"
 		localAPI.SecureCookies = os.Getenv("SECURE_COOKIES") == "true"

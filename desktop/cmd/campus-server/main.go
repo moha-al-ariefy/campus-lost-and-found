@@ -74,6 +74,9 @@ func run() error {
 		origin != "https://"+parsedOrigin.Host {
 		return errors.New("APP_ORIGIN must be the public HTTPS origin without a path or trailing slash")
 	}
+	if err := backend.LoadHoldingPeriod(db); err != nil {
+		return err
+	}
 	api := backend.NewAPI(db)
 	api.SecureCookies = true
 	api.AllowedOrigin = origin

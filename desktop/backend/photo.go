@@ -56,8 +56,25 @@ func photoBusy(w http.ResponseWriter) {
 	fail(w, http.StatusServiceUnavailable, "unavailable")
 }
 
-func readIntake(w http.ResponseWriter, r *http.Request, data *Intake) ([]byte, bool) {
-	if !strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/") {
+func (a *API) takePhotoUpload(w http.ResponseWriter, r *http.Request) (release func(), ok bool) {
+	if !isMultipart(r) {
+		return func() {}, true
+	}
+	select {
+	case a.photoUploads <- struct{}{}:
+		return func() { <-a.photoUploads }, true
+	default:
+		photoBusy(w)
+		return nil, false
+	}
+}
+
+func isMultipart(r *http.Request) bool {
+	return strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/")
+}
+
+func readPhotoSubmission(w http.ResponseWriter, r *http.Request, data any) ([]byte, bool) {
+	if !isMultipart(r) {
 		return nil, readBody(w, r, data)
 	}
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -133,7 +150,7 @@ func failIntakeRead(w http.ResponseWriter, err error) {
 	fail(w, 400, "invalidPhoto")
 }
 
-func intakeFingerprint(data Intake, photo []byte) string {
+func intakeFingerprint(data any, photo []byte) string {
 	if photo == nil {
 		return hash(encode(data))
 	}

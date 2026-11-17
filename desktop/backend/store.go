@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/crypto/scrypt"
-	_ "modernc.org/sqlite"
 )
 
 var Categories = []string{"electronics", "keys", "cards", "bags", "clothing", "books", "other"}
@@ -55,6 +55,9 @@ func OpenStore(path string) (*sql.DB, error) {
           private_data TEXT NOT NULL, created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS directory ON items(status, date_found DESC);
+        CREATE TABLE IF NOT EXISTS holding_period_settings (
+          id INTEGER PRIMARY KEY CHECK(id=1), days INTEGER NOT NULL CHECK(days>0)
+        );
         CREATE TABLE IF NOT EXISTS item_photos (
           item_id TEXT PRIMARY KEY REFERENCES items(id),
           mime TEXT NOT NULL CHECK(mime IN ('image/jpeg','image/png')),
@@ -65,6 +68,12 @@ func OpenStore(path string) (*sql.DB, error) {
           action TEXT NOT NULL, account_id TEXT NOT NULL REFERENCES accounts(id),
           timestamp TEXT NOT NULL, values_json TEXT NOT NULL
         );
+        CREATE INDEX IF NOT EXISTS item_history_by_record ON history(record_id,sequence);
+        CREATE TABLE IF NOT EXISTS item_activity_submissions (
+          account_id TEXT NOT NULL REFERENCES accounts(id), submission_key TEXT NOT NULL,
+          request_hash TEXT NOT NULL, response_json TEXT NOT NULL,
+          PRIMARY KEY(account_id,submission_key)
+        );
         CREATE TABLE IF NOT EXISTS submissions (
           account_id TEXT NOT NULL REFERENCES accounts(id), submission_key TEXT NOT NULL,
           request_hash TEXT NOT NULL, item_id TEXT NOT NULL REFERENCES items(id),
@@ -74,12 +83,111 @@ func OpenStore(path string) (*sql.DB, error) {
           BEGIN SELECT RAISE(ABORT, 'history_immutable'); END;
         CREATE TRIGGER IF NOT EXISTS history_no_delete BEFORE DELETE ON history
           BEGIN SELECT RAISE(ABORT, 'history_immutable'); END;
+        CREATE TABLE IF NOT EXISTS lost_reports (
+          id TEXT PRIMARY KEY, reporter_id TEXT NOT NULL REFERENCES accounts(id),
+          category TEXT NOT NULL, date_lost TEXT NOT NULL, description TEXT NOT NULL,
+          color TEXT NOT NULL, brand TEXT NOT NULL, building TEXT NOT NULL, contact TEXT NOT NULL,
+          assisted INTEGER NOT NULL CHECK(assisted IN (0,1)), created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS lost_report_owner ON lost_reports(reporter_id,created_at DESC,id);
+        CREATE TABLE IF NOT EXISTS lost_report_photos (
+          report_id TEXT PRIMARY KEY REFERENCES lost_reports(id),
+          mime TEXT NOT NULL CHECK(mime IN ('image/jpeg','image/png')),
+          content BLOB NOT NULL CHECK(length(content) BETWEEN 1 AND 1000000)
+        );
+        CREATE TABLE IF NOT EXISTS lost_report_history (
+          report_id TEXT PRIMARY KEY REFERENCES lost_reports(id), actor_id TEXT NOT NULL REFERENCES accounts(id),
+          timestamp TEXT NOT NULL, action TEXT NOT NULL CHECK(action='created'), values_json TEXT NOT NULL
+        );
+        CREATE TRIGGER IF NOT EXISTS report_history_no_update BEFORE UPDATE ON lost_report_history
+          BEGIN SELECT RAISE(ABORT, 'history_immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS report_history_no_delete BEFORE DELETE ON lost_report_history
+          BEGIN SELECT RAISE(ABORT, 'history_immutable'); END;
+        CREATE TABLE IF NOT EXISTS lost_report_submissions (
+          account_id TEXT NOT NULL REFERENCES accounts(id), submission_key TEXT NOT NULL,
+          request_hash TEXT NOT NULL, report_id TEXT NOT NULL REFERENCES lost_reports(id),
+          PRIMARY KEY(account_id, submission_key)
+        );
+        CREATE TABLE IF NOT EXISTS claims (
+          id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES items(id),
+          claimant_id TEXT NOT NULL REFERENCES accounts(id), description_answer TEXT NOT NULL,
+          loss_answer TEXT NOT NULL, contact TEXT NOT NULL,
+          status TEXT NOT NULL CHECK(status IN ('Submitted','Approved','Rejected')),
+          created_at TEXT NOT NULL, reason TEXT NOT NULL DEFAULT ''
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS claims_one_active_per_claimant
+          ON claims(item_id,claimant_id) WHERE status IN ('Submitted','Approved');
+        CREATE UNIQUE INDEX IF NOT EXISTS claims_one_approval ON claims(item_id) WHERE status='Approved';
+        CREATE INDEX IF NOT EXISTS claims_by_owner ON claims(claimant_id,created_at DESC,id);
+        CREATE TABLE IF NOT EXISTS handovers (
+          claim_id TEXT PRIMARY KEY REFERENCES claims(id), item_id TEXT NOT NULL UNIQUE REFERENCES items(id),
+          claimant_id TEXT NOT NULL REFERENCES accounts(id), releasing_account_id TEXT NOT NULL REFERENCES accounts(id),
+          released_at TEXT NOT NULL, verification TEXT NOT NULL CHECK(length(verification)>0),
+          receipt_reference TEXT NOT NULL CHECK(length(receipt_reference)>0),
+          signed_acknowledgment INTEGER NOT NULL CHECK(signed_acknowledgment=1),
+          submission_key TEXT NOT NULL, request_hash TEXT NOT NULL, UNIQUE(releasing_account_id,submission_key)
+        );
+        CREATE TABLE IF NOT EXISTS dispositions (
+          item_id TEXT PRIMARY KEY REFERENCES items(id),
+          kind TEXT NOT NULL CHECK(kind IN ('Returned','Handed to Police','Donated','Disposed')),
+          occurred_at TEXT NOT NULL, account_id TEXT NOT NULL REFERENCES accounts(id),
+          handover_claim_id TEXT UNIQUE REFERENCES handovers(claim_id),
+          decision_basis TEXT NOT NULL DEFAULT '', police_reference TEXT NOT NULL DEFAULT '',
+          CHECK((kind='Returned') = (handover_claim_id IS NOT NULL))
+        );
+        CREATE TABLE IF NOT EXISTS claim_decisions (
+          claim_id TEXT PRIMARY KEY REFERENCES claims(id), decided_by TEXT NOT NULL REFERENCES accounts(id),
+          decided_at TEXT NOT NULL,
+          details_check TEXT NOT NULL CHECK(details_check IN ('Passed','Failed','Not recorded')),
+          identity_check TEXT NOT NULL CHECK(identity_check IN ('Passed','Failed','Not recorded'))
+        );
+        CREATE TABLE IF NOT EXISTS claim_review_requests (
+          claim_id TEXT PRIMARY KEY REFERENCES claims(id), requested_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS claim_reopenings (
+          claim_id TEXT PRIMARY KEY REFERENCES claims(id), reopened_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS claim_history (
+          sequence INTEGER PRIMARY KEY AUTOINCREMENT, claim_id TEXT NOT NULL REFERENCES claims(id),
+          actor_id TEXT NOT NULL REFERENCES accounts(id), action TEXT NOT NULL, timestamp TEXT NOT NULL, values_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS claim_history_by_claim ON claim_history(claim_id,sequence);
+        CREATE INDEX IF NOT EXISTS claims_by_item ON claims(item_id);
+        CREATE TRIGGER IF NOT EXISTS claim_history_no_update BEFORE UPDATE ON claim_history
+          BEGIN SELECT RAISE(ABORT, 'history_immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS claim_history_no_delete BEFORE DELETE ON claim_history
+          BEGIN SELECT RAISE(ABORT, 'history_immutable'); END;
+        CREATE TABLE IF NOT EXISTS claim_submissions (
+          account_id TEXT NOT NULL REFERENCES accounts(id), submission_key TEXT NOT NULL, request_hash TEXT NOT NULL,
+          claim_id TEXT NOT NULL REFERENCES claims(id), response_json TEXT NOT NULL,
+          PRIMARY KEY(account_id, submission_key)
+        );
     `)
 	if err != nil {
 		db.Close()
 		return nil, err
 	}
+	if err := ensureItemPublicName(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("add public item names: %w", err)
+	}
 	return db, nil
+}
+
+func ensureItemPublicName(db *sql.DB) error {
+	const columnExists = `SELECT EXISTS(SELECT 1 FROM pragma_table_info('items') WHERE name='public_name')`
+	var exists bool
+	if err := db.QueryRow(columnExists).Scan(&exists); err != nil || exists {
+		return err
+	}
+	_, err := db.Exec(`ALTER TABLE items ADD COLUMN public_name TEXT NOT NULL DEFAULT '' CHECK(length(public_name) <= 80)`)
+	if err != nil {
+		// Another process may have opened the old database at the same time.
+		if check := db.QueryRow(columnExists).Scan(&exists); check == nil && exists {
+			return nil
+		}
+	}
+	return err
 }
 
 type executor interface {

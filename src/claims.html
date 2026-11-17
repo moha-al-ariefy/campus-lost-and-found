@@ -1,0 +1,165 @@
+@if (mode() === 'handover' && handoversEnabled() && account().role === 'staff') {
+  <app-handovers [request]="request()" [staffName]="account().name" (backToClaims)="load(page())"></app-handovers>
+} @else if (mode() === 'list') {
+  <div class="page-heading"><div>
+    <h1>{{ account().role === 'admin' ? t.claims.all : t.claims.mine }}</h1>
+    <p>{{ account().role === 'admin' ? t.claims.adminIntro : t.claims.intro }}</p>
+  </div>
+  @if (handoversEnabled() && account().role === 'staff') {
+    <button type="button" class="secondary" (click)="mode.set('handover')">{{ t.handover.openQueue }}</button>
+  }
+  </div>
+  @if (busy()) { <p role="status">{{ t.claims.loading }}</p> }
+  @else if (error()) { <p class="error-banner" role="alert">{{ error() }}</p><button type="button" class="secondary" (click)="load(page())">{{ t.retry }}</button> }
+  @else if (!claims().length) {
+    <div class="empty-state"><p>{{ t.claims.empty }}</p><button type="button" class="secondary" (click)="openDirectory.emit()">{{ t.claims.browse }}</button></div>
+  } @else {
+    <div class="item-list">
+      @for (entry of claims(); track entry.id) {
+        <button type="button" class="item-row" (click)="open(entry.id)">
+          <span class="item-main"><strong>{{ itemName(entry) }}</strong><span>{{ entry.createdAt | date:'dd MMM yyyy' }}</span><small>{{ entry.id }}</small></span>
+          <span class="item-end"><span class="status">{{ t.claims.status[entry.status] }}</span>
+            @if (entry.reviewRequestedAt) { <small class="review-request-indicator">{{ t.review.requested }}</small> }
+          </span>
+        </button>
+      }
+    </div>
+    @if (page() > 1 || hasMore()) {
+      <div class="pagination"><button class="secondary" (click)="load(page() - 1)" [disabled]="page() === 1">{{ t.previous }}</button>
+        <span>{{ t.page }} {{ page() }}</span><button class="secondary" (click)="load(page() + 1)" [disabled]="!hasMore()">{{ t.next }}</button></div>
+    }
+  }
+} @else if (mode() === 'form') {
+  @if (target(); as item) {
+    <div class="page-heading"><div><h1>{{ t.claims.start }}</h1><p>{{ itemName(item) }} · {{ holdingPoint(item.holdingPoint) }}</p></div></div>
+    <form class="intake-form" (ngSubmit)="submit()">
+      @if (error()) {
+        <div class="error-banner" role="alert" id="claim-form-error" tabindex="-1"><p>{{ error() }}</p>
+          @if (fields().length) { <ul>@for (field of fields(); track field) { <li><a [href]="'#claim-' + field">{{ fieldName(field) }}</a></li> }</ul> }
+        </div>
+      }
+      <fieldset [disabled]="busy() || uncertain()">
+        <legend>{{ t.claims.detail }}</legend><p class="section-hint">{{ t.claims.formHint }}</p>
+        <div class="form-grid">
+          <div class="field wide"><label for="claim-descriptionAnswer">{{ t.claims.descriptionAnswer }}</label>
+            <textarea id="claim-descriptionAnswer" name="descriptionAnswer" [(ngModel)]="answers.descriptionAnswer" required maxlength="2000" rows="3" [attr.aria-invalid]="fields().includes('descriptionAnswer')"></textarea></div>
+          <div class="field wide"><label for="claim-lossAnswer">{{ t.claims.lossAnswer }}</label>
+            <textarea id="claim-lossAnswer" name="lossAnswer" [(ngModel)]="answers.lossAnswer" required maxlength="2000" rows="3" [attr.aria-invalid]="fields().includes('lossAnswer')"></textarea></div>
+          <div class="field wide"><label for="claim-contact">{{ t.claims.contact }} · {{ t.optional }}</label>
+            <input id="claim-contact" name="contact" [(ngModel)]="answers.contact" maxlength="200" aria-describedby="claim-contact-help" [attr.aria-invalid]="fields().includes('contact')">
+            <small id="claim-contact-help">{{ t.claims.contactHint }}</small></div>
+        </div>
+      </fieldset>
+      <div class="form-footer"><div><button class="text-button" type="button" (click)="openDirectory.emit()" [disabled]="busy() || uncertain()">{{ t.back }}</button>
+        <button class="primary" type="submit" [disabled]="busy()">{{ busy() ? t.saving : uncertain() ? t.checkSubmission : t.claims.send }}</button></div></div>
+    </form>
+  }
+} @else {
+  @if (receipt(); as saved) { <div class="success-banner" role="status">{{ t.claims.sent }} {{ saved.id }}</div> }
+  @if (commandNotice()) { <div class="success-banner" role="status">{{ commandNotice() }}</div> }
+  <button type="button" class="text-button" (click)="load(page())" [disabled]="busy() || !!uncertainCommand()">← {{ t.claims.back }}</button>
+  @if (busy()) { <p role="status">{{ t.claims.loading }}</p> }
+  @else if (error()) { <p class="error-banner" role="alert">{{ error() }}</p><button class="secondary" (click)="retryDetail()">{{ t.retry }}</button> }
+  @else if (detail(); as claim) {
+    @if (commandError()) { <p id="claim-command-error" class="error-banner" role="alert" tabindex="-1">{{ commandError() }}</p> }
+    <div class="claim-review-layout" [class.has-evidence]="evidence()">
+    <section class="detail-panel claim-detail">
+      <h1>{{ itemName(claim) }}</h1><span class="status">{{ t.claims.status[claim.status] }}</span>
+      @if (!evidence() && claim.status === 'Submitted') { <p class="privacy-note">{{ t.claims.submittedHint }}</p> }
+      @if (!evidence() && claim.status === 'Approved') {
+        <p class="privacy-note">{{ claim.itemStatus === 'Returned' ? t.handover.collected : t.claims.approvedHint }}</p>
+      }
+      <dl><dt>{{ t.reference }}</dt><dd class="reference">{{ claim.id }}</dd><dt>{{ t.heldAt }}</dt><dd>{{ holdingPoint(claim.holdingPoint) }}</dd>
+        @if (claim.decidedAt) { <dt>{{ t.review.decidedAt }}</dt><dd>{{ claim.decidedAt | date:'dd MMM yyyy, HH:mm':'+0400' }}</dd> }
+        @if (claim.reason) { <dt>{{ t.claims.reason }}</dt><dd>{{ claim.reason }}</dd> }
+        @if (claim.reviewRequestedAt) { <dt>{{ t.review.requestedAt }}</dt><dd>{{ claim.reviewRequestedAt | date:'dd MMM yyyy, HH:mm':'+0400' }}</dd> }
+        @if (claim.reopenedAt) { <dt>{{ t.review.reopenedAt }}</dt><dd>{{ claim.reopenedAt | date:'dd MMM yyyy, HH:mm':'+0400' }}</dd> }
+      </dl>
+      @if (reopeningEnabled() && claim.ownClaim && claim.status === 'Rejected' && !claim.reviewRequestedAt) {
+        <p class="privacy-note">{{ t.review.requestHint }}</p>
+        <button class="secondary" type="button" (click)="requestReview()" [disabled]="uncertainCommand() === 'reopen'">
+          {{ uncertainCommand() === 'review-request' ? t.checkSubmission : t.review.request }}
+        </button>
+      }
+      @if (evidence()) { <h2>{{ t.review.claimantEvidence }}</h2> }
+      <dl>
+        <dt>{{ t.claims.descriptionAnswer }}</dt><dd>{{ claim.descriptionAnswer }}</dd>
+        <dt>{{ t.claims.lossAnswer }}</dt><dd>{{ claim.lossAnswer }}</dd>
+        @if (claim.contact) { <dt>{{ t.claims.contact }}</dt><dd>{{ claim.contact }}</dd> }
+      </dl>
+    </section>
+    @if (evidence(); as review) {
+      <section class="detail-panel">
+        <h2>{{ t.review.itemEvidence }}</h2>
+        <dl><dt>{{ t.reference }}</dt><dd class="reference">{{ review.item.id }}</dd>
+          <dt>{{ t.location }}</dt><dd>{{ review.item.location }}</dd>
+          <dt>{{ t.foundOn }}</dt><dd>{{ review.item.dateFound | date:'dd MMM yyyy' }}</dd>
+          <dt>{{ t.description }}</dt><dd>{{ review.item.description }}</dd>
+          <dt>{{ t.identifyingDetails }}</dt><dd>{{ review.item.identifyingDetails || t.notProvided }}</dd>
+          <dt>{{ t.color }} / {{ t.brand }} / {{ t.building }}</dt>
+          <dd>{{ review.item.color || t.notProvided }} / {{ review.item.brand || t.notProvided }} / {{ review.item.building || t.notProvided }}</dd>
+        </dl>
+        @if (evidencePhoto(review.item); as photo) {
+          @if (evidencePhotoFailed()) {
+            <p role="status">{{ t.review.photoError }}</p>
+            <button class="secondary" type="button" (click)="evidencePhotoFailed.set(false)">{{ t.retry }}</button>
+          } @else {
+            <figure class="private-photo"><img class="item-photo" [src]="photo" [alt]="t.review.photo" (error)="evidencePhotoFailed.set(true)"></figure>
+          }
+        }
+      </section>
+      @if (claim.status === 'Submitted') {
+        <form class="intake-form claim-decision" (ngSubmit)="saveDecision()">
+          <fieldset [disabled]="busy() || !!uncertainCommand()"><legend>{{ t.review.title }}</legend>
+            <div class="form-grid">
+              <div class="field wide"><label for="claim-outcome">{{ t.review.outcome }}</label>
+                <select id="claim-outcome" name="outcome" [(ngModel)]="decision.outcome" required>
+                  <option value="" disabled>{{ t.review.choose }}</option>
+                  @if (review.item.status === 'Open') { <option value="approve">{{ t.review.approve }}</option> }
+                  <option value="reject">{{ t.review.reject }}</option>
+                </select>
+              </div>
+              @if (decision.outcome === 'reject') {
+                <div class="field wide"><label for="claim-reason">{{ t.review.reason }}</label>
+                  <textarea id="claim-reason" name="reason" [(ngModel)]="decision.reason" required maxlength="1000" rows="3"></textarea></div>
+              }
+              <div class="field"><label for="claim-details-check">{{ t.review.detailsCheck }}</label>
+                <select id="claim-details-check" name="detailsCheck" [(ngModel)]="decision.detailsCheck">
+                  @for (check of checkResults; track check) { <option [value]="check">{{ t.review.checkState[check] }}</option> }
+                </select>
+              </div>
+              <div class="field"><label for="claim-identity-check">{{ t.review.identityCheck }}</label>
+                <select id="claim-identity-check" name="identityCheck" [(ngModel)]="decision.identityCheck" aria-describedby="verification-privacy">
+                  @for (check of checkResults; track check) { <option [value]="check">{{ t.review.checkState[check] }}</option> }
+                </select>
+                <small id="verification-privacy">{{ t.review.noDocuments }}</small>
+              </div>
+            </div>
+          </fieldset>
+          <button type="submit" class="primary" [disabled]="busy() || !decision.outcome">{{ uncertainCommand() ? t.checkSubmission : t.review.save }}</button>
+        </form>
+      } @else {
+        <section class="detail-panel claim-decision"><h2>{{ t.review.checks }}</h2>
+          <dl><dt>{{ t.review.detailsCheck }}</dt><dd>{{ t.review.checkState[review.checks.detailsCheck] }}</dd>
+            <dt>{{ t.review.identityCheck }}</dt><dd>{{ t.review.checkState[review.checks.identityCheck] }}</dd>
+            @if (review.reviewer) { <dt>{{ t.review.decidedBy }}</dt><dd>{{ review.reviewer }}</dd> }
+          </dl>
+        </section>
+      }
+      @if (reopeningEnabled() && claim.status === 'Rejected' && review.item.status === 'Open') {
+        <form class="intake-form claim-decision" (ngSubmit)="reopen()">
+          <fieldset [disabled]="!!uncertainCommand()">
+            <legend>{{ t.review.reopen }}</legend>
+            <div class="field"><label for="claim-reopening-reason">{{ t.review.reopeningReason }}</label>
+              <textarea id="claim-reopening-reason" name="reopeningReason" [(ngModel)]="reopeningReason" required maxlength="1000" rows="3"></textarea>
+            </div>
+          </fieldset>
+          <button type="submit" class="primary" [disabled]="uncertainCommand() === 'review-request' || !reopeningReason.trim()">
+            {{ uncertainCommand() === 'reopen' ? t.checkSubmission : t.review.reopen }}
+          </button>
+        </form>
+      }
+    }
+    </div>
+  }
+}

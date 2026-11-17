@@ -11,7 +11,7 @@ All 70 requirement records from M2 v1.0 §3. Use the original acceptance criteri
 | IF-005 | Storage read failure | Must | AC-IF005 / TC-IF005 | 1 | Partial preview evidence |
 | IF-006 | Interrupted submission feedback | Must | AC-IF006 / TC-IF006 | 1 | Partial preview evidence |
 | FR-001 | Create a found item record | Must | AC-FR001 / TC-FR001 | 1 | Partial preview evidence |
-| FR-002 | Correct open item details | Must | AC-FR002 / TC-FR002 | 1 | Open |
+| FR-002 | Correct open item details | Must | AC-FR002 / TC-FR002 | 1 | Local API and interface evidence |
 | FR-003 | Submit a lost item report | Must | AC-FR003 / TC-FR003 | 1 | Open |
 | FR-004 | Retrieve a lost item report | Must | AC-FR004 / TC-FR004 | 1 | Open |
 | FR-005 | Search public item attributes | Must | AC-FR005 / TC-FR005 | 1 | Partial preview evidence |
@@ -21,14 +21,14 @@ All 70 requirement records from M2 v1.0 §3. Use the original acceptance criteri
 | FR-009 | Review claim evidence | Must | AC-FR009 / TC-FR009 | 1 | Open |
 | FR-010 | Record an ownership decision | Must | AC-FR010 / TC-FR010 | 1 | Open |
 | FR-011 | Resolve competing approvals | Must | AC-FR011 / TC-FR011 | 1 | Open |
-| FR-012 | Complete an approved handover | Must | AC-FR012 / TC-FR012 | 1 | Open |
-| FR-013 | Request review after rejection | Should | AC-FR013 / TC-FR013 | 1 | Open |
-| FR-028 | Reopen a rejected claim for review | Should | AC-FR028 / TC-FR028 | 1 | Open |
-| FR-014 | Record a non-return disposition | Must | AC-FR014 / TC-FR014 | 1 | Open |
-| FR-015 | Enforce final status transitions | Must | AC-FR015 / TC-FR015 | 1 | Open |
-| FR-016 | Record a holding point transfer | Must | AC-FR016 / TC-FR016 | 1 | Open |
+| FR-012 | Complete an approved handover | Must | AC-FR012 / TC-FR012 | 1 | Local API and interface evidence |
+| FR-013 | Request review after rejection | Should | AC-FR013 / TC-FR013 | 1 | Local API evidence |
+| FR-028 | Reopen a rejected claim for review | Should | AC-FR028 / TC-FR028 | 1 | Local API evidence |
+| FR-014 | Record a non-return disposition | Must | AC-FR014 / TC-FR014 | 1 | Local API evidence |
+| FR-015 | Enforce final status transitions | Must | AC-FR015 / TC-FR015 | 1 | Local API evidence |
+| FR-016 | Record a holding point transfer | Must | AC-FR016 / TC-FR016 | 1 | Local API evidence |
 | FR-017 | Withdraw an incorrect directory record | Should | AC-FR017 / TC-FR017 | 1 | Open |
-| FR-018 | Record owner contact attempts | Should | AC-FR018 / TC-FR018 | 1 | Open |
+| FR-018 | Record owner contact attempts | Should | AC-FR018 / TC-FR018 | 1 | Local API evidence |
 | FR-019 | Generate attribute match suggestions | Must | AC-FR019 / TC-FR019 | 1 | Open |
 | FR-020 | Present advisory matches | Must | AC-FR020 / TC-FR020 | 1 | Open |
 | FR-021 | Accept valid test credentials | Must | AC-FR021 / TC-FR021 | 1 | Partial preview evidence |
@@ -47,7 +47,7 @@ All 70 requirement records from M2 v1.0 §3. Use the original acceptance criteri
 | CON-002 | Simulated login | Must | AC-CON002 / TC-CON002 | 1 | Partial preview evidence |
 | CON-003 | Received date and time | Must | AC-CON003 / TC-CON003 | 1 | Partial preview evidence |
 | CON-004 | Police reference for handover | Must | AC-CON004 / TC-CON004 | 1 | Open |
-| CON-005 | Adjustable holding period | Should | AC-CON005 / TC-CON005 | 1 | Open |
+| CON-005 | Adjustable holding period | Should | AC-CON005 / TC-CON005 | 1 | Local restart and API evidence |
 | CON-006 | Personal data limits | Must | AC-CON006 / TC-CON006 | 1 | Open |
 | CON-007 | Free-tier services | Must | AC-CON007 / TC-CON007 | 0 | Open |
 | NFR-006 | Save integrity | Must | AC-NFR006 / TC-NFR006 | 1 | Partial preview evidence |
@@ -70,7 +70,7 @@ All 70 requirement records from M2 v1.0 §3. Use the original acceptance criteri
 | DR-006 | Single holding point | Must | AC-DR006 / TC-DR006 | 1 | Partial preview evidence |
 | DR-007 | One final disposition | Must | AC-DR007 / TC-DR007 | 1 | Open |
 | DR-008 | One approved claim per item | Must | AC-DR008 / TC-DR008 | 1 | Open |
-| DR-009 | Handover record completeness | Must | AC-DR009 / TC-DR009 | 1 | Open |
+| DR-009 | Handover record completeness | Must | AC-DR009 / TC-DR009 | 1 | Local API and interface evidence |
 | DR-010 | History entries cannot be changed | Must | AC-DR010 / TC-DR010 | 1 | Partial preview evidence |
 | DR-011 | No deletion of records | Should | AC-DR011 / TC-DR011 | 1 | Open |
 | NFR-018 | Data export and restore | Should | AC-NFR018 / TC-NFR018 | 0 | Open |

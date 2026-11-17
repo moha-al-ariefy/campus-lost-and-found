@@ -1,0 +1,73 @@
+@if (operation(); as active) {
+  <form class="intake-form activity" (ngSubmit)="submit()">
+    @if (error()) { <p id="item-activity-error" class="error-banner" role="alert" tabindex="-1">{{ error() }}</p> }
+    <fieldset [disabled]="busy() || uncertain()">
+      <legend>{{ operations[active] }}</legend>
+      <div class="form-grid">
+        @switch (active) {
+          @case ('custody') {
+            <div class="field wide"><p class="section-hint">{{ t.custody.transferHint }}</p>
+              <label for="custody-destination">{{ t.custody.destination }}</label>
+              <select id="custody-destination" name="destination" [(ngModel)]="destination" required [attr.aria-invalid]="fields().includes('holdingPoint')">
+                <option value="">{{ t.choosePoint }}</option>
+                @for (point of points(); track point) {
+                  @if (point !== item().holdingPoint) { <option [value]="point">{{ pointName(point) }}</option> }
+                }
+              </select>
+            </div>
+          }
+          @case ('disposition') {
+            <div class="field wide"><label for="custody-disposition">{{ t.custody.disposition }}</label>
+              <select id="custody-disposition" name="disposition" [(ngModel)]="disposition" required [attr.aria-invalid]="fields().includes('kind')">
+                <option value="">{{ t.review.choose }}</option>
+                @for (kind of dispositions; track kind) { <option [value]="kind">{{ t.custody.status[kind] }}</option> }
+              </select>
+            </div>
+            <div class="field wide"><label for="custody-date">{{ t.custody.date }}</label>
+              <input id="custody-date" name="date" [(ngModel)]="date" type="date" required [attr.aria-invalid]="fields().includes('date')"></div>
+            <div class="field wide"><label for="custody-basis">{{ t.custody.basis }}</label>
+              <textarea id="custody-basis" name="basis" [(ngModel)]="basis" required maxlength="1000" rows="3" [attr.aria-invalid]="fields().includes('decisionBasis')"></textarea></div>
+            @if (disposition === 'Handed to Police') {
+              <div class="field wide"><label for="custody-police-reference">{{ t.custody.policeReference }}</label>
+                <input id="custody-police-reference" name="policeReference" [(ngModel)]="policeReference" required maxlength="200" [attr.aria-invalid]="fields().includes('policeReference')"></div>
+            }
+          }
+          @case ('contact-attempt') {
+            <div class="field wide"><p class="section-hint">{{ t.custody.contactHint }}</p>
+              <label for="custody-attempted">{{ t.custody.occurredAt }}</label>
+              <input id="custody-attempted" name="attemptedAt" [(ngModel)]="attemptedAt" type="datetime-local" required aria-describedby="custody-attempted-help" [attr.aria-invalid]="fields().includes('attemptedAt')">
+              <small id="custody-attempted-help">{{ t.receivedHint }}</small>
+            </div>
+            <div class="field wide"><label for="custody-method">{{ t.custody.method }}</label>
+              <input id="custody-method" name="method" [(ngModel)]="method" required maxlength="100" [attr.aria-invalid]="fields().includes('method')"></div>
+            <div class="field wide"><label for="custody-outcome">{{ t.custody.outcome }}</label>
+              <textarea id="custody-outcome" name="outcome" [(ngModel)]="outcome" required maxlength="1000" rows="3" [attr.aria-invalid]="fields().includes('outcome')"></textarea></div>
+          }
+          @case ('withdraw') {
+            <div class="field wide"><p class="section-hint">{{ t.custody.withdrawHint }}</p>
+              <label for="custody-reason">{{ t.custody.reason }}</label>
+              <textarea id="custody-reason" name="reason" [(ngModel)]="reason" required maxlength="1000" rows="3" [attr.aria-invalid]="fields().includes('reason')"></textarea></div>
+          }
+        }
+      </div>
+    </fieldset>
+    <div class="item-activity-actions">
+      <button class="primary" type="submit" [disabled]="busy()">{{ uncertain() ? t.checkSubmission : operations[active] }}</button>
+      <button class="text-button" type="button" [disabled]="busy() || uncertain()" (click)="operation.set(null)">{{ t.custody.close }}</button>
+    </div>
+  </form>
+} @else if (account().role === 'admin' || canTransfer()) {
+  <div class="item-activity-actions activity">
+    @if (canTransfer()) {
+      <button class="secondary" type="button" (click)="open('custody')">{{ t.custody.transfer }}</button>
+    }
+    @if (account().role === 'admin') {
+      <button class="secondary" type="button" (click)="open('contact-attempt')">{{ t.custody.contact }}</button>
+      @if (item().status === 'Open' && !item().hasApprovedClaim) {
+        <button class="secondary" type="button" (click)="open('disposition')">{{ t.custody.disposition }}</button>
+        <button class="secondary" type="button" (click)="open('withdraw')">{{ t.custody.withdraw }}</button>
+      }
+    }
+  </div>
+  @if (account().role === 'admin' && item().status === 'Open' && item().hasApprovedClaim) { <p class="privacy-note">{{ t.custody.blocked }}</p> }
+}

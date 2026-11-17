@@ -6,7 +6,7 @@ Campus Lost & Found is being built for RIT Dubai as Team LAMNZ's final project f
 
 The project brings the reception/security desk and the Office of Student Affairs into one shared lost-property workflow: record an item, help its owner find it, verify the claim, and record the handover.
 
-**Current status:** iteration 1 is ready for review. The Windows executable runs Angular in a system webview with a Go backend and SQLite storage. No Electron. Linux remains a required target; it has not been built or verified yet.
+**Current status:** Windows previews use Angular in the system webview, with a Go backend and SQLite storage. Release targets are Windows and the web. Azure hosts the shared backend on Linux.
 
 Working now: course-account sign-in, server-side sessions and permissions, found-item intake with an optional private photo, filtered directory, private intake details, administrator history and atomic retry-safe saves. Lost reports, claims and handovers remain in development.
 
@@ -40,7 +40,7 @@ Shared-server builds can include a default HTTPS API address by passing `-ldflag
 
 ### Build from source
 
-Requirements: Node 22.12+ within version 22, or Node 24+; Go 1.26+; Wails CLI 2.17.0; Windows WebView2. Linux also requires the platform dependencies in the [Wails installation guide](https://wails.io/docs/gettingstarted/installation/).
+Requirements for the Windows build include Node 22.12+ within version 22 or Node 24+, Go 1.26+, Wails CLI 2.17.0 and Windows WebView2.
 
 ```sh
 npm ci
@@ -72,7 +72,7 @@ See [iteration 1 evidence and limitations](docs/iteration-1.md).
 
 ### Friend testing
 
-After building, run `powershell -File scripts/package-test.ps1`. The ZIP in `release/` contains the Windows executable, logo, [short test guide](docs/TEST-GUIDE.md), feedback form, [test map](docs/test-map.md) and executable checksum. It contains no database or preset password. Send the ZIP and its adjacent SHA256 file together. This is an unsigned Windows x64 local preview; Linux and shared-server testing are pending.
+After building, run `powershell -File scripts/package-test.ps1`. The ZIP in `release/` contains the Windows executable, logo, [short test guide](docs/TEST-GUIDE.md), feedback form, [test map](docs/test-map.md) and executable checksum. Send the ZIP and its adjacent SHA256 file together. This is an unsigned Windows x64 preview. Check the test map for shared-server verification.
 
 RIT hosting is unavailable. We will run our own shared service on an external host. Provider selection and deployment remain open. Production readiness is required and tracked in the test map; this preview is not the production release.
 

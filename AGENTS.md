@@ -6,7 +6,7 @@ This is Team LAMNZ's final project for RIT Dubai, SWEN 261: Introduction to Soft
 - Deliver the demo feedback and the full agreed M1–M3 scope. Trace each domain change to the relevant UML classes, sequence branches and data flows. Verify successful, denied, retried and failed requests where each diagram calls for them.
 - Keep permissions, privacy and durable writes at the server boundary. Choose code structures that fit the task and the existing code. Avoid mechanically repeating one pattern across unrelated features. Keep responsibilities clear, bound expensive work, and test the course capacity and concurrency targets before making scalability claims.
 - The app must work. No fake saves, invented statistics, pretend integrations, decorative buttons or hardcoded business data presented as live data. Test fixtures belong in explicitly labelled test/demo environments.
-- Build Windows and Linux versions. Do not use Electron. Angular must implement meaningful application functionality.
+- Build the Windows desktop app and web version. Linux desktop packaging is out of scope. The Azure backend remains on Linux. Do not use Electron. Angular must implement meaningful application functionality.
 - The Windows deliverable must be an actual .exe. The current implementation uses Wails with Angular and a native Go/SQLite backend. Browser testing is supplementary, not the Windows deliverable. Benchmark the whole process tree before claiming the architecture is lightweight.
 - Treat RAM, startup time and responsiveness as measured requirements. Include webview child processes in desktop measurements. Never claim performance or platform support without evidence.
 - Preserve the baseline browser/mobile workflows as well as the requested desktop builds.
@@ -14,6 +14,7 @@ This is Team LAMNZ's final project for RIT Dubai, SWEN 261: Introduction to Soft
 - Use the user's existing Git installation for version control. Do not download or install GitHub CLI. Repository creation does not authorize pushing project content.
 - Follow the writing and code style observed in moha-al-ariefy/AUEV-AI-CODING-TOOL: descriptive names, explicit types, early guards, short purpose-driven comments, occasional dry humour where useful. The user explicitly requires no emojis in the README. Keep documentation direct and practical. Never invent release badges, results or installation commands.
 - Finish and verify coherent batches. Show the proposed commit subject in the AUEV repository's style and wait for explicit approval before creating that commit. Approval to commit does not approve a push.
+- Add focused unit tests for new behavior and run the affected suite between feature batches. Run the full suite before proposing a commit.
 - Explain in README that this was built for and as the RIT Dubai SWEN course final project. Do not imply official university deployment or endorsement.
 - Prototype accounts are an explicit course requirement (CON-002). Implement actual credential verification, server-side sessions and permissions; label the login simulation and never request university passwords.
 - Enforce permissions and public/private field separation on the server. UI hiding is not authorization.

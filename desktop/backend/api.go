@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -49,7 +50,10 @@ type Intake struct {
 	Color              string `json:"color"`
 	Brand              string `json:"brand"`
 	Building           string `json:"building"`
+	PublicName         string `json:"publicName,omitempty"`
 }
+
+const maxItemNameLength = 80
 
 func NewAPI(db *sql.DB) *API {
 	return &API{
@@ -145,7 +149,31 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "campus_session", Value: "", Path: "/api", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: a.SecureCookies, MaxAge: -1})
 		reply(w, 200, map[string]bool{"ok": true})
 	case r.URL.Path == "/api/config" && r.Method == "GET":
-		reply(w, 200, map[string]any{"categories": Categories, "holdingPoints": HoldingPoints})
+		reply(w, 200, map[string]any{"categories": Categories, "holdingPoints": HoldingPoints, "itemNames": true, "lostReports": true, "claims": true, "claimReview": true, "claimReopening": true, "handovers": true, "custody": true})
+	case r.URL.Path == "/api/handovers" && r.Method == "GET":
+		a.listPendingHandovers(w, r, actor)
+	case r.URL.Path == "/api/claims" && r.Method == "POST":
+		a.submitClaim(w, r, actor)
+	case r.URL.Path == "/api/claims" && r.Method == "GET":
+		a.listClaims(w, r, actor)
+	case strings.HasPrefix(r.URL.Path, "/api/claims/") && strings.HasSuffix(r.URL.Path, "/evidence") && r.Method == "GET":
+		a.claimEvidence(w, r, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/claims/"), "/evidence"), actor)
+	case strings.HasPrefix(r.URL.Path, "/api/claims/") && strings.HasSuffix(r.URL.Path, "/decision") && r.Method == "POST":
+		a.decideClaim(w, r, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/claims/"), "/decision"), actor)
+	case strings.HasPrefix(r.URL.Path, "/api/claims/") && strings.HasSuffix(r.URL.Path, "/review-request") && r.Method == "POST":
+		a.requestClaimReview(w, r, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/claims/"), "/review-request"), actor)
+	case strings.HasPrefix(r.URL.Path, "/api/claims/") && strings.HasSuffix(r.URL.Path, "/reopen") && r.Method == "POST":
+		a.reopenClaim(w, r, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/claims/"), "/reopen"), actor)
+	case strings.HasPrefix(r.URL.Path, "/api/claims/") && strings.HasSuffix(r.URL.Path, "/handover") && (r.Method == "GET" || r.Method == "POST"):
+		a.handover(w, r, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/claims/"), "/handover"), actor)
+	case strings.HasPrefix(r.URL.Path, "/api/claims/") && r.Method == "GET":
+		a.readClaim(w, r, strings.TrimPrefix(r.URL.Path, "/api/claims/"), actor)
+	case r.URL.Path == "/api/reports" && r.Method == "POST":
+		a.createLostReport(w, r, actor)
+	case r.URL.Path == "/api/reports" && r.Method == "GET":
+		a.listLostReports(w, r, actor)
+	case strings.HasPrefix(r.URL.Path, "/api/reports/") && r.Method == "GET":
+		a.readLostReport(w, r, actor)
 	case r.URL.Path == "/api/items" && r.Method == "GET":
 		a.search(w, r)
 	case r.URL.Path == "/api/items" && r.Method == "POST":
@@ -153,6 +181,9 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(r.URL.Path, "/api/items/") && strings.HasSuffix(r.URL.Path, "/withdraw") && r.Method == "POST":
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/items/"), "/withdraw")
 		a.withdrawItem(w, r, id, actor)
+	case strings.HasPrefix(r.URL.Path, "/api/items/") && r.Method == "POST":
+		id, operation, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/api/items/"), "/")
+		a.recordItemActivity(w, r, id, operation, actor)
 	case strings.HasPrefix(r.URL.Path, "/api/items/") && r.Method == "GET":
 		id := strings.TrimPrefix(r.URL.Path, "/api/items/")
 		if strings.HasSuffix(id, "/photo") {
@@ -338,13 +369,14 @@ func validDate(value string) bool {
 func (a *API) search(w http.ResponseWriter, r *http.Request) {
 	filters := r.URL.Query()
 	for key, values := range filters {
-		if !slices.Contains([]string{"category", "location", "holdingPoint", "from", "to", "page"}, key) || len(values) != 1 {
+		if !slices.Contains([]string{"category", "location", "holdingPoint", "from", "to", "page", "publicName"}, key) || len(values) != 1 {
 			fail(w, 400, "invalidFilters")
 			return
 		}
 	}
 	category, point, location, from, to := filters.Get("category"), filters.Get("holdingPoint"), filters.Get("location"), filters.Get("from"), filters.Get("to")
-	if (category != "" && !slices.Contains(Categories, category)) || (point != "" && !slices.Contains(HoldingPoints, point)) || utf8.RuneCountInString(location) > 150 || (from != "" && !validDate(from)) || (to != "" && !validDate(to)) || (from != "" && to != "" && from > to) {
+	name := strings.TrimSpace(filters.Get("publicName"))
+	if !validItemName(name) || (category != "" && !slices.Contains(Categories, category)) || (point != "" && !slices.Contains(HoldingPoints, point)) || utf8.RuneCountInString(location) > 150 || (from != "" && !validDate(from)) || (to != "" && !validDate(to)) || (from != "" && to != "" && from > to) {
 		fail(w, 400, "invalidFilters")
 		return
 	}
@@ -359,7 +391,7 @@ func (a *API) search(w http.ResponseWriter, r *http.Request) {
 	}
 	clauses := []string{"status='Open'"}
 	args := []any{}
-	for _, filter := range []struct{ value, clause string }{{category, "category=?"}, {point, "holding_point=?"}, {from, "date_found>=?"}, {to, "date_found<=?"}, {location, "instr(lower(location),lower(?))>0"}} {
+	for _, filter := range []struct{ value, clause string }{{category, "category=?"}, {point, "holding_point=?"}, {from, "date_found>=?"}, {to, "date_found<=?"}, {location, "instr(lower(location),lower(?))>0"}, {name, "instr(lower(public_name),lower(?))>0"}} {
 		if filter.value != "" {
 			clauses = append(clauses, filter.clause)
 			args = append(args, filter.value)
@@ -372,7 +404,7 @@ func (a *API) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	args = append(args, (page-1)*20)
-	rows, err := a.DB.Query("SELECT id,category,location,date_found,holding_point FROM items WHERE "+where+" ORDER BY date_found DESC,id LIMIT 20 OFFSET ?", args...)
+	rows, err := a.DB.Query("SELECT id,category,location,date_found,holding_point,public_name FROM items WHERE "+where+" ORDER BY date_found DESC,id LIMIT 20 OFFSET ?", args...)
 	if err != nil {
 		fail(w, 503, "unavailable")
 		return
@@ -380,12 +412,12 @@ func (a *API) search(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	items := []map[string]any{}
 	for rows.Next() {
-		var id, category, location, date, point string
-		if err := rows.Scan(&id, &category, &location, &date, &point); err != nil {
+		var id, category, location, date, point, publicName string
+		if err := rows.Scan(&id, &category, &location, &date, &point, &publicName); err != nil {
 			fail(w, 503, "unavailable")
 			return
 		}
-		items = append(items, map[string]any{"id": id, "category": category, "location": location, "dateFound": date, "holdingPoint": point, "status": "Open"})
+		items = append(items, map[string]any{"id": id, "category": category, "location": location, "dateFound": date, "holdingPoint": point, "status": "Open", "publicName": publicName})
 	}
 	if rows.Err() != nil {
 		fail(w, 503, "unavailable")
@@ -401,16 +433,26 @@ func loadItem(db queryer, id string, actor *Account) (map[string]any, error) {
 }
 
 func loadItemView(db queryer, id string, actor *Account, ownReplay bool) (map[string]any, error) {
-	var category, location, date, point, status, creator, private string
-	var hasPhoto bool
-	err := db.QueryRow(`SELECT category,location,date_found,holding_point,status,creator_id,private_data,
-		EXISTS(SELECT 1 FROM item_photos WHERE item_id=items.id)
-		FROM items WHERE id=? AND (status='Open' OR (status='Withdrawn' AND (?='admin' OR (? AND creator_id=?))))`,
-		id, actor.Role, ownReplay, actor.ID).Scan(&category, &location, &date, &point, &status, &creator, &private, &hasPhoto)
+	var category, location, date, point, status, creator, private, publicName string
+	var hasPhoto, approvedClaim, ownSubmittedClaim bool
+	var holdingPeriod sql.NullInt64
+	var correctionRevision int64
+	err := db.QueryRow(`SELECT category,location,date_found,holding_point,status,creator_id,private_data,public_name,
+		EXISTS(SELECT 1 FROM item_photos WHERE item_id=items.id),
+		EXISTS(SELECT 1 FROM claims WHERE item_id=items.id AND status='Approved'),
+		EXISTS(SELECT 1 FROM claims WHERE item_id=items.id AND status='Submitted' AND claimant_id=?),
+		(SELECT days FROM holding_period_settings WHERE id=1 AND ?='admin'),
+		coalesce((SELECT max(sequence) FROM history WHERE record_id=items.id AND action='corrected'),0)
+		FROM items WHERE id=? AND (status='Open' OR ?='admin' OR (? AND creator_id=?))`,
+		actor.ID, actor.Role, id, actor.Role, ownReplay, actor.ID).
+		Scan(&category, &location, &date, &point, &status, &creator, &private, &publicName, &hasPhoto, &approvedClaim, &ownSubmittedClaim, &holdingPeriod, &correctionRevision)
 	if err != nil {
 		return nil, err
 	}
-	item := map[string]any{"id": id, "category": category, "location": location, "dateFound": date, "holdingPoint": point, "status": status}
+	item := map[string]any{"id": id, "category": category, "location": location, "dateFound": date, "holdingPoint": point, "status": status, "publicName": publicName, "canClaim": status == "Open" && !approvedClaim && !ownSubmittedClaim}
+	if actor.Role == "admin" {
+		item["hasApprovedClaim"] = approvedClaim
+	}
 	// Keep the clues off the wire. CSS is not a privacy policy.
 	if actor.Role == "admin" || actor.ID == creator {
 		var fields map[string]any
@@ -420,7 +462,19 @@ func loadItemView(db queryer, id string, actor *Account, ownReplay bool) (map[st
 		for key, value := range fields {
 			item[key] = value
 		}
+		if holdingPeriod.Valid && status == "Open" && !approvedClaim {
+			received, _ := fields["receivedAt"].(string)
+			if parsed, err := time.Parse(campusMinuteLayout, received); err == nil {
+				end := parsed.AddDate(0, 0, int(holdingPeriod.Int64))
+				if end.Year() <= 9999 {
+					item["holdingPeriodEnd"] = end.Format("2006-01-02")
+				}
+			}
+		}
 		item["creatorId"] = creator
+		if status == "Open" && (actor.Role == "admin" || (actor.Role == "staff" && slices.Contains(actor.HoldingPoints, point))) {
+			item["correctionRevision"] = correctionRevision
+		}
 		if hasPhoto {
 			item["photoUrl"] = "/api/items/" + id + "/photo"
 		}
@@ -445,8 +499,16 @@ func (a *API) itemPhoto(w http.ResponseWriter, id string, actor *Account) {
 	_, _ = w.Write(photo.content)
 }
 
+func validItemName(value string) bool {
+	return utf8.RuneCountInString(value) <= maxItemNameLength && strings.IndexFunc(value, unicode.IsControl) < 0
+}
+
 func validate(data *Intake) []string {
 	fields := []string{}
+	data.PublicName = strings.TrimSpace(data.PublicName)
+	if !validItemName(data.PublicName) {
+		fields = append(fields, "publicName")
+	}
 	for _, field := range []struct {
 		name     string
 		value    *string
@@ -488,16 +550,12 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 		return
 	}
 	var data Intake
-	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/") {
-		select {
-		case a.photoUploads <- struct{}{}:
-			defer func() { <-a.photoUploads }()
-		default:
-			photoBusy(w)
-			return
-		}
+	release, ok := a.takePhotoUpload(w, r)
+	if !ok {
+		return
 	}
-	inputPhoto, valid := readIntake(w, r, &data)
+	defer release()
+	inputPhoto, valid := readPhotoSubmission(w, r, &data)
 	if !valid {
 		return
 	}
@@ -556,8 +614,8 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request, actor *Account)
 	}
 	id := "CLF-" + hex.EncodeToString(random)
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
-	private := encode(map[string]any{"description": data.Description, "identifyingDetails": data.IdentifyingDetails, "receivedAt": data.ReceivedAt, "color": data.Color, "brand": data.Brand, "building": data.Building})
-	_, err = tx.Exec("INSERT INTO items(id,category,location,date_found,holding_point,creator_id,private_data,created_at) VALUES(?,?,?,?,?,?,?,?)", id, data.Category, data.Location, data.DateFound, data.HoldingPoint, actor.ID, private, timestamp)
+	private := intakePrivateData(data)
+	_, err = tx.Exec("INSERT INTO items(id,category,location,date_found,holding_point,creator_id,private_data,created_at,public_name) VALUES(?,?,?,?,?,?,?,?,?)", id, data.Category, data.Location, data.DateFound, data.HoldingPoint, actor.ID, private, timestamp, data.PublicName)
 	if err == nil && inputPhoto != nil {
 		_, err = tx.Exec("INSERT INTO item_photos(item_id,mime,content) VALUES(?,?,?)", id, photo.mime, photo.content)
 	}
@@ -610,9 +668,25 @@ func (a *API) history(w http.ResponseWriter, id string, actor *Account) {
 		fail(w, 403, "forbidden")
 		return
 	}
-	rows, err := a.DB.Query(`SELECT h.sequence,h.action,h.timestamp,a.name,
-		CASE WHEN h.action='withdrawn' THEN json_extract(h.values_json,'$.reason') ELSE NULL END
-		FROM history h JOIN accounts a ON a.id=h.account_id WHERE h.record_id=? ORDER BY h.sequence`, id)
+	var exists bool
+	if err := a.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM items WHERE id=?)", id).Scan(&exists); err != nil {
+		fail(w, 503, "unavailable")
+		return
+	}
+	if !exists {
+		fail(w, 404, "notFound")
+		return
+	}
+	rows, err := a.DB.Query(`WITH events AS (
+		SELECT 'item' AS source,h.sequence,h.action,h.timestamp,a.name,h.record_id,h.values_json,
+			coalesce(r.receipt_reference,'') AS receipt_reference,coalesce(r.verification,'') AS verification
+		FROM history h JOIN accounts a ON a.id=h.account_id
+		LEFT JOIN handovers r ON h.action='returned' AND r.item_id=h.record_id WHERE h.record_id=?
+		UNION ALL
+		SELECT 'claim',h.sequence,h.action,h.timestamp,a.name,h.claim_id,h.values_json,'',''
+		FROM claims c JOIN claim_history h ON h.claim_id=c.id JOIN accounts a ON a.id=h.actor_id WHERE c.item_id=?
+		) SELECT source,sequence,action,timestamp,name,record_id,values_json,receipt_reference,verification FROM events
+		ORDER BY rtrim(timestamp,'Z'),sequence,source`, id, id)
 	if err != nil {
 		fail(w, 503, "unavailable")
 		return
@@ -621,15 +695,24 @@ func (a *API) history(w http.ResponseWriter, id string, actor *Account) {
 	entries := []map[string]any{}
 	for rows.Next() {
 		var sequence int
-		var action, timestamp, name string
-		var reason sql.NullString
-		if rows.Scan(&sequence, &action, &timestamp, &name, &reason) != nil {
+		var source, action, timestamp, name, recordID, values, receiptReference, verification string
+		if rows.Scan(&source, &sequence, &action, &timestamp, &name, &recordID, &values, &receiptReference, &verification) != nil {
 			fail(w, 503, "unavailable")
 			return
 		}
-		entry := map[string]any{"sequence": sequence, "action": action, "timestamp": timestamp, "actor": name}
-		if reason.Valid {
-			entry["reason"] = reason.String
+		var detail map[string]any
+		if json.Unmarshal([]byte(values), &detail) != nil || detail == nil {
+			fail(w, 503, "unavailable")
+			return
+		}
+		entry := map[string]any{"source": source, "sequence": sequence, "action": action, "timestamp": timestamp, "actor": name,
+			"recordId": recordID, "details": detail}
+		if action == "withdrawn" {
+			entry["reason"] = detail["reason"]
+		}
+		if receiptReference != "" {
+			detail["receiptReference"] = receiptReference
+			detail["verification"] = verification
 		}
 		entries = append(entries, entry)
 	}

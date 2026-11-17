@@ -59,7 +59,8 @@ func (a *API) withdrawItem(w http.ResponseWriter, r *http.Request, id string, ac
 		return
 	}
 	var status string
-	err = tx.QueryRow("SELECT status FROM items WHERE id=?", id).Scan(&status)
+	var approved bool
+	err = tx.QueryRow(`SELECT status, EXISTS(SELECT 1 FROM claims WHERE item_id=items.id AND status='Approved') FROM items WHERE id=?`, id).Scan(&status, &approved)
 	if errors.Is(err, sql.ErrNoRows) {
 		fail(w, 404, "notFound")
 		return
@@ -72,8 +73,13 @@ func (a *API) withdrawItem(w http.ResponseWriter, r *http.Request, id string, ac
 		fail(w, 409, "itemNotOpen")
 		return
 	}
-	// Before adding claims, condition this transition on claim eligibility under M3 Q-13.
-	result, err := tx.Exec("UPDATE items SET status='Withdrawn' WHERE id=? AND status='Open'", id)
+	// M3 Q-13 leaves withdrawal with an approved claim unresolved.
+	if approved {
+		fail(w, 409, "itemHasApprovedClaim")
+		return
+	}
+	result, err := tx.Exec(`UPDATE items SET status='Withdrawn' WHERE id=? AND status='Open'
+		AND NOT EXISTS(SELECT 1 FROM claims WHERE item_id=items.id AND status='Approved')`, id)
 	if err != nil {
 		fail(w, 503, "unavailable")
 		return
