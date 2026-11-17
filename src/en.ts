@@ -1,18 +1,27 @@
 export const en = {
   app: 'Campus Lost & Found', campus: 'RIT Dubai', course: 'SWEN 261 · Team LAMNZ',
   tagline: 'A little less lost.', intro: 'One place for the things left behind. Find what has been handed in, and help it find its way home.',
-  testLabel: 'Course project · Test accounts', loginTitle: 'Welcome back', loginHint: 'Sign in with your course test account to continue.',
-  setupTitle: 'Set up this test instance', setupHint: 'Choose a test password for the local course accounts. This is separate from your RIT password.', setupButton: 'Create test accounts', setupPassword: 'New test password', setupDone: 'Test accounts created. Sign in as student, reception, affairs or admin with the password you chose.', setupAccountHint: 'Local accounts: student, reception, affairs, admin. Use the test password chosen when this instance was created.',
-  login: 'Test account', password: 'Test password', signIn: 'Sign in', signingIn: 'Signing in…',
+  version: '1.0', loginTitle: 'Welcome back', loginHint: 'Sign in to Campus Lost & Found.',
+  setupTitle: 'Set up this local instance', setupHint: 'Choose a password for the local course accounts. Use a different password from your RIT account.', setupButton: 'Create local accounts', setupPassword: 'New password', setupDone: 'Local accounts created. Sign in as student, reception, affairs or admin with the password you chose.', setupAccountHint: 'Local accounts: student, reception, affairs, admin. Use the password you chose during setup.',
+  login: 'Username', password: 'Password', signIn: 'Sign in', signingIn: 'Signing in…',
   createAccount: 'Create account', creatingAccount: 'Creating account…', backToSignIn: 'Back to sign in',
-  signupHint: 'Create a campus test account. Choose a username and a test password with at least 15 characters.',
+  signupHint: 'Choose a username and a password with at least 15 characters.',
   signupName: 'Display name', signupLogin: 'Username', signupDone: 'Your account is ready. Sign in with your new password.',
-  loginNotice: 'This login is a simulation for the course project. Do not enter your RIT password.',
+  loginNotice: 'Course sign-in simulation. Use your Campus Lost & Found account and keep your RIT password separate.',
   directory: 'Found items', intake: 'Record an item', signOut: 'Sign out', signingOut: 'Signing out…',
   workspace: 'WORKSPACE', directoryTitle: 'Find a lost item', directoryHint: 'Search items that have been handed in on campus.',
   intakeTitle: 'Give it a way home.', intakeHint: 'Record an item that has been physically handed in at your holding point.',
   staffIntakeHint: 'Found something? Hand it in at Reception or Student Affairs and staff will add it to the directory.',
-  localNotice: 'Course test instance', iteration: 'Iteration 1 · Intake & directory',
+  guide: {
+    open: 'How to use the app', title: 'Welcome to Campus Lost & Found', skip: 'Skip', done: 'Got it',
+    search: { title: 'Start with Found items', text: 'Search by item name, or filter by category, date and holding point.' },
+    campus: { title: 'Report or claim an item', text: 'Use Lost reports if you can’t find your item. If you recognise a listing, open it and select Claim this item. Follow the decision under Claims.' },
+    staff: { title: 'Record items at your desk', text: 'Use Record an item after someone hands it in. Keep distinguishing details and photos in the private fields.' },
+    release: { title: 'Check approved handovers', text: 'Open Approved handovers under Claims. Record the release after confirming the claimant and collecting a signed paper receipt.' },
+    admin: { title: 'Review claims and evidence', text: 'Open Claims to compare the claimant’s answers with the private item record. Save your verification checks and decision.' },
+    manage: { title: 'Keep custody up to date', text: 'Open a found item to record its transfer, contact attempts or final outcome, and review its activity.' },
+    handIn: { title: 'Found something?', text: 'Bring it to Reception or Student Affairs so staff can record it and keep it safe.' }
+  },
   allCategories: 'All categories', allPoints: 'Both holding points',
   category: 'Category', location: 'General location', locationHint: 'Building or area', from: 'Found from', to: 'Found until',
   publicName: 'Item name', publicNameSearch: 'Search by item name', publicNameExample: 'e.g. Water bottle or calculator',
@@ -109,7 +118,7 @@ export const en = {
   unknownOutcome: 'The save could not be confirmed. Your information is kept here. Check the same submission before making changes.',
   checkSubmission: 'Check / retry this submission', history: 'Activity', created: 'Item recorded',
   detailLoading: 'Loading item…', noPrivate: 'Ownership details are private. Contact the holding point if you believe this item is yours.',
-  notProvided: 'Not provided', photoNote: 'Photo attachments and claims are scheduled for iteration 2.',
+  notProvided: 'Not provided',
   roles: { campus: 'Campus user', staff: 'Holding-point staff', admin: 'Administrator' },
   categories: { electronics: 'Electronics', keys: 'Keys', cards: 'Cards & IDs', bags: 'Bags', clothing: 'Clothing', books: 'Books & stationery', other: 'Other' },
   points: { reception: 'Reception', 'student-affairs': 'Student Affairs' },
@@ -135,9 +144,9 @@ export const en = {
     invalidClaimDecision: 'Choose whether to approve or reject the claim.',
     invalidClaimChecks: 'Choose a listed result for each verification check.',
     claimDecisionConflict: 'This claim changed during review. Reload it and check its current state.',
-    loginFailed: 'Test account or password not recognised.',
+    loginFailed: 'Username or password not recognised.',
     rateLimited: 'Too many attempts. Wait one minute, then try again.',
-    invalidSignup: 'Enter a display name, a username of 3–40 letters, numbers, dots, dashes or underscores, and a test password of at least 15 characters.',
+    invalidSignup: 'Enter a display name, a username of 3–40 letters, numbers, dots, dashes or underscores, and a password of at least 15 characters.',
     signupUnavailable: 'That username is unavailable. Choose another or sign in.',
     sessionExpired: 'Your session has ended. Sign in again to continue.',
     forbidden: 'Your account does not have permission for this action.',
@@ -152,7 +161,7 @@ export const en = {
     unavailable: 'The service could not complete this request. Please try again.',
     notFound: 'This item is no longer available in the directory.',
     network: 'The service could not be reached. Check the server and try again.'
-    ,setupComplete: 'This instance has already been set up. Sign in with its test accounts.'
-    ,setupPassword: 'Choose a test password between 12 and 200 characters.'
+    ,setupComplete: 'This instance has already been set up. Sign in with a local account.'
+    ,setupPassword: 'Choose a password between 12 and 200 characters.'
   }
 };

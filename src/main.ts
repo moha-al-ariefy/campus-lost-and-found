@@ -44,10 +44,12 @@ export class App {
   readonly history = signal<ItemHistoryEntry[]>([]);
   readonly view = signal<'directory' | 'intake' | 'reports' | 'claims'>('directory');
   readonly lostReportsEnabled = signal(false);
+  readonly lostReportHistoryEnabled = signal(false);
   readonly claimsEnabled = signal(false);
   readonly claimReviewEnabled = signal(false);
   readonly claimReopeningEnabled = signal(false);
   readonly handoversEnabled = signal(false);
+  readonly guideStep = signal(0);
   readonly custodyEnabled = signal(false);
   readonly correction = signal<{ id: string; revision: number } | null>(null);
   readonly claimItem = signal<PublicItem | null>(null);
@@ -73,6 +75,7 @@ export class App {
   private readonly injector = inject(Injector);
   private detailOpener: HTMLElement | null = null;
   private directoryScroll = 0;
+  private readonly seenGuides = new Set<string>();
 
   constructor() { void this.restoreSession(); }
 
@@ -133,7 +136,10 @@ export class App {
       const session = await this.api<{ account: Account }>('/session');
       this.account.set(session.account); await this.loadConfig(); await this.search();
     } catch (error) { if (!(error instanceof ApiError && error.status === 401)) this.error.set(this.message(error)); else this.error.set(''); }
-    finally { this.booting.set(false); }
+    finally {
+      this.booting.set(false);
+      this.openFirstGuide();
+    }
   }
 
   async signIn(): Promise<void> {
@@ -156,6 +162,7 @@ export class App {
       const session = await this.api<{ account: Account }>('/login', { method: 'POST', body: JSON.stringify({ login: this.loginName, password: this.password }) });
       this.password = ''; this.account.set(session.account); this.view.set('directory');
       await this.loadConfig(); await this.search();
+      this.openFirstGuide();
     } catch (error) { this.error.set(this.message(error)); }
     finally { this.busy.set(false); }
   }
@@ -166,6 +173,54 @@ export class App {
     this.password = '';
     this.error.set('');
     this.setupMessage.set('');
+  }
+
+  guideSteps(): readonly { title: string; text: string }[] {
+    const guide = this.t.guide;
+    switch (this.account()?.role) {
+      case 'admin': return [guide.search, guide.admin, guide.manage];
+      case 'staff': return [guide.search, guide.staff, guide.release];
+      default: return [guide.search, guide.campus, guide.handIn];
+    }
+  }
+
+  private guideKey(): string | undefined {
+    const account = this.account();
+    return account ? `campus-guide-v1:${account.id}` : undefined;
+  }
+
+  private openFirstGuide(): void {
+    const key = this.guideKey();
+    if (!key || this.seenGuides.has(key)) return;
+    try { if (localStorage.getItem(key)) return; } catch { /* The guide also works without browser storage. */ }
+    this.openGuide();
+  }
+
+  openGuide(): void {
+    this.guideStep.set(0);
+    afterNextRender(() => {
+      const guide = document.querySelector<HTMLDialogElement>('#app-guide');
+      if (guide && !guide.open && this.account()) guide.showModal();
+    }, { injector: this.injector });
+  }
+
+  moveGuide(direction: number): void {
+    const next = this.guideStep() + direction;
+    if (next >= this.guideSteps().length) {
+      this.closeGuide();
+    } else if (next >= 0) {
+      this.guideStep.set(next);
+      afterNextRender(() => document.getElementById('app-guide-step')?.focus(), { injector: this.injector });
+    }
+  }
+
+  closeGuide(): void { document.querySelector<HTMLDialogElement>('#app-guide')?.close(); }
+
+  markGuideSeen(): void {
+    const key = this.guideKey();
+    if (!key) return;
+    this.seenGuides.add(key);
+    try { localStorage.setItem(key, 'seen'); } catch { /* Keep the in-memory preference for this session. */ }
   }
 
   async signOut(): Promise<void> {
@@ -182,10 +237,11 @@ export class App {
   }
 
   async loadConfig(): Promise<void> {
-    const config = await this.api<{ categories: string[]; holdingPoints: string[]; itemNames?: boolean; lostReports?: boolean; claims?: boolean; claimReview?: boolean; claimReopening?: boolean; handovers?: boolean; custody?: boolean }>('/config');
+    const config = await this.api<{ categories: string[]; holdingPoints: string[]; itemNames?: boolean; lostReports?: boolean; lostReportHistory?: boolean; claims?: boolean; claimReview?: boolean; claimReopening?: boolean; handovers?: boolean; custody?: boolean }>('/config');
     this.categories.set(config.categories); this.points.set(config.holdingPoints);
     this.itemNamesEnabled.set(config.itemNames === true);
     this.lostReportsEnabled.set(config.lostReports === true);
+    this.lostReportHistoryEnabled.set(config.lostReportHistory === true);
     this.claimsEnabled.set(config.claims === true);
     this.claimReviewEnabled.set(config.claimReview === true);
     this.claimReopeningEnabled.set(config.claimReopening === true);

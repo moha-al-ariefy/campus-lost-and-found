@@ -5,20 +5,25 @@
 - Build / SHA256 from supplied checksum file:
 - Windows version:
 - RAM:
-- Fresh install or existing local instance:
+- Test environment (Azure or local):
+- Test item reference:
 
 | Check | PASS / FAIL / NOT RUN | Notes |
 | --- | --- | --- |
-| Launch and first setup | | |
+| Launch and sign-in | | |
+| Welcome guide opens once and can be reopened | | |
 | Wrong password rejected | | |
 | Missing fields rejected | | |
 | Intake saved | | |
 | Filters and empty state | | |
-| Restart keeps the same record | | |
+| Second computer finds the same record | | |
 | Student cannot see private clues | | |
 | Other staff cannot see private clues | | |
 | Assigned holding point | | |
 | Admin detail and history | | |
+| Claim submitted and approved | | |
+| Handover removes item from directory | | |
+| Claimant sees collection recorded | | |
 | Keyboard and resized window | | |
 
 ## Issue

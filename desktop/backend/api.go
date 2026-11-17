@@ -149,7 +149,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "campus_session", Value: "", Path: "/api", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: a.SecureCookies, MaxAge: -1})
 		reply(w, 200, map[string]bool{"ok": true})
 	case r.URL.Path == "/api/config" && r.Method == "GET":
-		reply(w, 200, map[string]any{"categories": Categories, "holdingPoints": HoldingPoints, "itemNames": true, "lostReports": true, "claims": true, "claimReview": true, "claimReopening": true, "handovers": true, "custody": true})
+		reply(w, 200, map[string]any{"categories": Categories, "holdingPoints": HoldingPoints, "itemNames": true, "lostReports": true, "lostReportHistory": true, "claims": true, "claimReview": true, "claimReopening": true, "handovers": true, "custody": true})
 	case r.URL.Path == "/api/handovers" && r.Method == "GET":
 		a.listPendingHandovers(w, r, actor)
 	case r.URL.Path == "/api/claims" && r.Method == "POST":

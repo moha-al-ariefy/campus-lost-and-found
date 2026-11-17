@@ -31,7 +31,7 @@
   }
 } @else if (mode() === 'form') {
   @if (target(); as item) {
-    <div class="page-heading"><div><h1>{{ t.claims.start }}</h1><p>{{ itemName(item) }} · {{ holdingPoint(item.holdingPoint) }}</p></div></div>
+    <div class="page-heading"><div><h1 id="claim-form-title" tabindex="-1">{{ t.claims.start }}</h1><p>{{ itemName(item) }} · {{ holdingPoint(item.holdingPoint) }}</p></div></div>
     <form class="intake-form" (ngSubmit)="submit()">
       @if (error()) {
         <div class="error-banner" role="alert" id="claim-form-error" tabindex="-1"><p>{{ error() }}</p>
@@ -55,7 +55,7 @@
     </form>
   }
 } @else {
-  @if (receipt(); as saved) { <div class="success-banner" role="status">{{ t.claims.sent }} {{ saved.id }}</div> }
+  @if (receipt(); as saved) { <div id="claim-confirmation" class="success-banner" role="status" tabindex="-1">{{ t.claims.sent }} {{ saved.id }}</div> }
   @if (commandNotice()) { <div class="success-banner" role="status">{{ commandNotice() }}</div> }
   <button type="button" class="text-button" (click)="load(page())" [disabled]="busy() || !!uncertainCommand()">← {{ t.claims.back }}</button>
   @if (busy()) { <p role="status">{{ t.claims.loading }}</p> }

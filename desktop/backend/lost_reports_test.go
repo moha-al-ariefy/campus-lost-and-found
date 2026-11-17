@@ -9,6 +9,39 @@ import (
 	"testing"
 )
 
+func TestLostReportHistory(t *testing.T) {
+	api, db := fixture(t)
+	student, admin := login(t, api, "student"), login(t, api, "admin")
+	input := LostReportInput{Category: "electronics", Description: "Private report history fixture", DateLost: "2026-11-10"}
+	const key = "report-history-fixture"
+	saved := call(api, "POST", "/api/reports", input, student, key)
+	requireCode(t, saved, http.StatusCreated)
+	id := contents(t, saved)["report"].(map[string]any)["id"].(string)
+	path := "/api/reports/" + id + "/history"
+	requireCode(t, call(api, "POST", "/api/reports", input, student, key), http.StatusOK)
+	requireCode(t, call(api, "GET", path, nil, student, ""), http.StatusForbidden)
+	requireCode(t, call(api, "GET", "/api/reports/unknown/history", nil, admin, ""), http.StatusNotFound)
+	response := call(api, "GET", path, nil, admin, "")
+	requireCode(t, response, http.StatusOK)
+	entries := contents(t, response)["entries"].([]any)
+	if len(entries) != 1 {
+		t.Fatalf("expected one history entry after retry, got %d", len(entries))
+	}
+	entry := entries[0].(map[string]any)
+	if entry["recordId"] != id || entry["action"] != "created" || entry["actor"] != "Campus user" || entry["timestamp"] == "" ||
+		entry["details"].(map[string]any)["description"] != input.Description {
+		t.Fatal("history lost the stored event details")
+	}
+	if _, err := db.Exec("UPDATE lost_report_history SET values_json='{}'"); err == nil {
+		t.Fatal("report history accepted an update")
+	}
+	if _, err := db.Exec("DROP TABLE lost_report_history"); err != nil {
+		t.Fatal(err)
+	}
+	requireCode(t, call(api, "GET", path, nil, admin, ""), http.StatusServiceUnavailable)
+	requireCode(t, call(api, "GET", path, nil, student, ""), http.StatusForbidden)
+}
+
 func TestLostReportOwnerAndStaffAssistance(t *testing.T) {
 	api, db := fixture(t)
 	student := login(t, api, "student")

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -238,6 +239,10 @@ func (a *API) listLostReports(w http.ResponseWriter, r *http.Request, actor *Acc
 
 func (a *API) readLostReport(w http.ResponseWriter, r *http.Request, actor *Account) {
 	id, action, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/api/reports/"), "/")
+	if action == "history" {
+		a.readLostReportHistory(w, r, id, actor)
+		return
+	}
 	report, err := loadLostReport(a.DB, id, actor)
 	if errors.Is(err, sql.ErrNoRows) {
 		fail(w, 404, "notFound")
@@ -269,6 +274,30 @@ func (a *API) readLostReport(w http.ResponseWriter, r *http.Request, actor *Acco
 	default:
 		fail(w, 404, "notFound")
 	}
+}
+
+func (a *API) readLostReportHistory(w http.ResponseWriter, r *http.Request, id string, actor *Account) {
+	if actor.Role != "admin" {
+		fail(w, 403, "forbidden")
+		return
+	}
+	var action, timestamp, name, values sql.NullString
+	var sequence sql.NullInt64
+	err := a.DB.QueryRowContext(r.Context(), `SELECT h.rowid,h.action,h.timestamp,a.name,h.values_json
+		FROM lost_reports r LEFT JOIN lost_report_history h ON h.report_id=r.id
+		LEFT JOIN accounts a ON a.id=h.actor_id WHERE r.id=?`, id).Scan(&sequence, &action, &timestamp, &name, &values)
+	if errors.Is(err, sql.ErrNoRows) {
+		fail(w, 404, "notFound")
+		return
+	}
+	if err != nil || !sequence.Valid || !action.Valid || !timestamp.Valid || !name.Valid || !json.Valid([]byte(values.String)) {
+		fail(w, 503, "unavailable")
+		return
+	}
+	reply(w, 200, map[string]any{"entries": []map[string]any{{
+		"sequence": sequence.Int64, "action": action.String, "timestamp": timestamp.String, "actor": name.String,
+		"recordId": id, "details": json.RawMessage(values.String),
+	}}})
 }
 
 func (a *API) suggestLostReportMatches(w http.ResponseWriter, r *http.Request, report LostReport) {

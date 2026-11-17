@@ -11,7 +11,7 @@
     </section>
     <section class="login-form-region">
       <form (ngSubmit)="signIn()" class="login-form">
-        <span class="pill">{{ t.testLabel }}</span><h2>{{ needsSetup() ? t.setupTitle : signingUp() ? t.createAccount : t.loginTitle }}</h2><p class="muted">{{ needsSetup() ? t.setupHint : signingUp() ? t.signupHint : t.loginHint }}</p>
+        <span class="pill">{{ t.version }}</span><h2>{{ needsSetup() ? t.setupTitle : signingUp() ? t.createAccount : t.loginTitle }}</h2><p class="muted">{{ needsSetup() ? t.setupHint : signingUp() ? t.signupHint : t.loginHint }}</p>
         @if (setupMessage()) { <div class="success-banner" role="status">{{ setupMessage() }}</div> }
         @if (error()) { <div class="error-banner" role="alert">{{ error() }}</div> }
         @if (signingUp()) { <label for="display-name">{{ t.signupName }}</label><input id="display-name" name="displayName" [(ngModel)]="displayName" autocomplete="nickname" required maxlength="80"> }
@@ -41,7 +41,7 @@
       <button class="logout" (click)="signOut()" [disabled]="busy()">{{ t.signOut }} <span aria-hidden="true">↗</span></button>
     </aside>
     <div class="workspace">
-      <header class="topbar"><span>{{ t.campus }} <span class="slash">/</span> {{ view() === 'claims' ? t.claims.navigation : view() === 'reports' ? t.reports.navigation : view() === 'directory' ? t.directory : t.intake }}</span><span class="environment"><i></i>{{ t.localNotice }}</span></header>
+      <header class="topbar"><span>{{ t.campus }} <span class="slash">/</span> {{ view() === 'claims' ? t.claims.navigation : view() === 'reports' ? t.reports.navigation : view() === 'directory' ? t.directory : t.intake }}</span><span class="environment">{{ t.version }}</span></header>
       <main class="main-content">
         @if (success()) { <div class="success-banner" role="status">{{ success() }}</div> }
         @if (error() && view() !== 'intake') { <div class="error-banner" role="alert">{{ error() }}</div> }
@@ -237,6 +237,7 @@
         }
         @if (lostReportsEnabled()) {
           <app-lost-reports [hidden]="view() !== 'reports'" [active]="view() === 'reports'" [account]="account()!"
+            [historyEnabled]="lostReportHistoryEnabled()"
             [categories]="categories()" [request]="request" (viewItem)="showSuggestedItem($event)"></app-lost-reports>
         }
         @if (claimsEnabled()) {
@@ -245,8 +246,22 @@
             [handoversEnabled]="handoversEnabled()"
             [request]="request" (openDirectory)="showDirectory()"></app-claims>
         }
-        <footer class="workspace-footer"><span>{{ t.course }}</span><span>{{ t.iteration }}</span></footer>
+        <footer class="workspace-footer"><span>{{ t.course }}</span><button class="text-button" type="button" (click)="openGuide()">{{ t.guide.open }}</button></footer>
       </main>
     </div>
   </div>
+  <dialog id="app-guide" class="app-guide" aria-labelledby="app-guide-title" (close)="markGuideSeen()">
+    <h2 id="app-guide-title">{{ t.guide.title }}</h2>
+    @if (guideSteps()[guideStep()]; as step) {
+      <h3 id="app-guide-step" tabindex="-1" autofocus>{{ step.title }}</h3>
+      <p>{{ step.text }}</p>
+    }
+    <div class="app-guide-actions">
+      <button class="text-button" type="button" (click)="closeGuide()">{{ t.guide.skip }}</button>
+      <div>
+        @if (guideStep() > 0) { <button class="secondary" type="button" (click)="moveGuide(-1)">{{ t.previous }}</button> }
+        <button class="primary" type="button" (click)="moveGuide(1)">{{ guideStep() + 1 === guideSteps().length ? t.guide.done : t.next }}</button>
+      </div>
+    </div>
+  </dialog>
 }

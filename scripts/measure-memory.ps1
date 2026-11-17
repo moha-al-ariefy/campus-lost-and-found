@@ -6,8 +6,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $processInventory = @(Get-CimInstance Win32_Process)
 $appRoot = $processInventory | Where-Object ProcessId -EQ $AppProcessId
-if (-not $appRoot -or $appRoot.Name -ne 'CampusLostFound.exe') {
-    throw 'Select the running CampusLostFound.exe process.'
+if (-not $appRoot -or $appRoot.Name -notmatch '^CampusLostFound(?:-[a-zA-Z0-9-]+)?\.exe$') {
+    throw 'Select a running CampusLostFound Windows build.'
 }
 $appIds = [System.Collections.Generic.HashSet[int]]::new()
 $null = $appIds.Add($AppProcessId)
@@ -37,7 +37,9 @@ $result = [PSCustomObject]@{
     rootProcessId = $AppProcessId
     processCount = @($samples).Count
     totalWorkingSetMiB = [math]::Round(($samples | Measure-Object workingSetMiB -Sum).Sum, 2)
-    totalPrivateWorkingSetMiB = [math]::Round(($samples | Measure-Object privateWorkingSetMiB -Sum).Sum, 2)
+    totalPrivateWorkingSetMiB = if ($samples.privateWorkingSetMiB -contains $null) { $null } else {
+        [math]::Round(($samples | Measure-Object privateWorkingSetMiB -Sum).Sum, 2)
+    }
     totalPrivateCommittedMiB = [math]::Round(($samples | Measure-Object privateCommittedMiB -Sum).Sum, 2)
     note = 'Working set sums may count shared pages more than once. Private working set is resident private RAM. Private committed memory is not the same as resident RAM.'
     processes = @($samples)

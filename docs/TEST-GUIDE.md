@@ -1,41 +1,25 @@
-# Campus Lost & Found: quick test
+# Campus Lost & Found Windows test
 
-Team LAMNZ · RIT Dubai SWEN 261 final project · Iteration 1
+Team LAMNZ · RIT Dubai SWEN 261 final project
 
-Allow about 10 minutes. These steps are for the local Windows preview, where each computer has its own records. Use invented test items only.
-
-**To add a found item:** sign in as `reception` or `affairs` using the password you chose during setup. Select **Record an item** from the sidebar or the top of **Found items**. Fill in the category, description, general location, date found and received time, confirm the holding point, then select **Save found item**. The `student` account can search the directory.
+Allow about 10 minutes for the shared staging check. Use invented items and identifying clues for every test.
 
 ## Start
 
-1. Extract the complete ZIP into a folder, then open `CampusLostFound.exe`.
-2. Windows needs Microsoft Edge WebView2 Runtime. If missing, install it from https://developer.microsoft.com/en-us/microsoft-edge/webview2/ . No Node or Go installation is needed.
-3. This preview executable is unsigned. If Windows blocks it, report the exact message to Mohammed; do not disable security protection.
-4. On the first launch, choose a test password of at least 12 characters. Do not use your university password. The four local test accounts below use the password you chose. If setup is absent, this computer already has a local database.
+1. Extract the ZIP and open `CampusLostFound.exe`. If Windows asks for WebView2 Runtime, use the [Microsoft installer](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+2. Sign in with the staging test account Mohammed assigned you. Use **Create account** to test campus-user signup. Never use your university password.
+3. If the app asks you to set up a local instance, you're using the offline build. Local records stay on that computer. Use the Azure build for the two-client check below.
+4. After your first sign-in, follow the welcome guide or select **Skip**. You can reopen it with **How to use the app** at the bottom of the page.
 
-| Account | Role | What to check |
-| --- | --- | --- |
-| reception | Reception staff | Record an item at Reception; view its private clues |
-| affairs | Student Affairs staff | Record an item at Student Affairs; other staff's clues remain private |
-| student | Campus user | Search public details; no intake or ownership clues |
-| admin | Administrator | Inspect private details and creation history |
+## Check the shared workflow
 
-## Try these checks
-
-1. Enter an incorrect password. Expect an error, not a signed-in screen.
-2. Sign in as `reception`. Select **Record an item**. Try saving with required fields missing; expect validation and no saved record.
-3. Create an Electronics item, general location `Library - TEST`, description `TEST headphones`, and identifying detail `TEST blue tape inside case`. Use today's found date and a valid received time. If the build has an **Item photo** field, attach a test JPEG or PNG and check the preview. Keep clues out of the public location. Save once and record its reference.
-4. Search by `Library - TEST`, category and holding point. Expect your item. Search for an unrelated location; expect no results. Clear filters; expect the item again.
-5. Open the item as its creator. Expect the description, private clue and any attached photo. Close and reopen the app, sign in if needed, and find the same reference. Expect exactly one record.
-6. Sign out and sign in as `student`. Find the same record. Expect only directory details. The private description, blue-tape clue, photo and intake action should be hidden.
-7. Sign in as `affairs`. The reception item's clues should remain private. Any new intake must use the assigned Student Affairs holding point.
-8. Sign in as `admin`. Expect the item's private details, any attached photo and its creation activity.
-9. Use Tab, Shift+Tab, Enter and the arrow keys through sign-in, filters and intake. Resize the window. Report anything clipped, unreadable, slow or unreachable.
-
-Report each check as PASS, FAIL or NOT RUN. Lost reports, claims and handover remain in development.
+1. As `reception`, select **Record an item**. Use a distinctive item name such as `TEST headphones 018`, general location `Library`, and a private clue such as `blue tape inside the case`. Add a test JPEG or PNG if you have one. Save and note the item reference.
+2. On a second computer, sign in as a campus user. Search by the exact item name and open it. Confirm the reference matches. The private clue and photo should be hidden.
+3. As that campus user, submit a claim with the matching clue. Open **Claims** and check that it says **Submitted**.
+4. As `admin`, open the claim, compare the private evidence, and approve only after recording both verification checks. The campus user should see **Approved**. Use role accounts assigned for this test.
+5. As `reception`, go to **Claims → Approved handovers**. For this test item, record verification and a fictional signed paper receipt reference. Check that the item leaves the directory and the claimant sees that collection was recorded.
+6. Use Tab, Shift+Tab and Enter through sign-in, search and claim submission. Resize the window and note anything clipped or unreachable.
 
 ## Send back
 
-Fill in `FEEDBACK.md` and send it to Mohammed with screenshots if useful. Include your Windows version, approximate RAM, the step, expected result and actual result. Do not send passwords, university details or your database. Do not put real lost-property data into this preview.
-
-Data stays at `%APPDATA%\CampusLostFound\campus.db` after closing or replacing the executable. Keep it for restart checks. No password-reset or database-reset UI exists in this iteration; report access problems instead of deleting files.
+Fill in [FEEDBACK.md](FEEDBACK.md) with PASS, FAIL or NOT RUN for each step. Include your Windows version, the item reference, and what you expected and saw. If the unsigned preview is blocked, report the Windows message. Leave passwords, university details and screenshots of private data out of the feedback.

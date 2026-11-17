@@ -82,6 +82,23 @@
           @if (photoFailed()) { <p role="status">{{ t.photoUnavailable }}</p><button class="secondary" (click)="retryDetail()">{{ t.retry }}</button> }
           @else { <figure class="private-photo"><img class="item-photo" [src]="url" [alt]="t.photo" (error)="photoFailed.set(true)"></figure> }
         }
+        @if (historyEnabled() && account().role === 'admin') {
+          <section class="activity item-timeline" aria-labelledby="report-history-title">
+            <h2 id="report-history-title">{{ t.history }}</h2>
+            @if (loadingHistory()) { <p role="status">{{ t.loading }}</p> }
+            @else if (historyError()) {
+              <p class="error-banner" role="alert">{{ historyError() }}</p>
+              <button type="button" class="secondary" (click)="loadHistory()">{{ t.retry }}</button>
+            } @else {
+              <ol>@for (event of history(); track event.sequence) {
+                <li>
+                  <strong>{{ t.reports.saved }}</strong>
+                  <small>{{ event.actor }} · {{ event.timestamp | date:'yyyy-MM-dd HH:mm':'+0400' }}</small>
+                </li>
+              }</ol>
+            }
+          </section>
+        }
       </section>
       <section class="results-region">
         <h2>{{ t.reports.matches }}</h2><p>{{ t.reports.advisory }}</p>

@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, effect, input, OnDestroy, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import type { Account, PublicItem } from '../shared/types';
+import type { Account, ItemHistoryEntry, PublicItem } from '../shared/types';
 import { en } from './en';
 import { ApiError, photoFileError, photoSubmissionRequest } from './submission';
 
@@ -22,6 +22,7 @@ export class LostReportsView implements OnDestroy {
   readonly active = input.required<boolean>();
   readonly account = input.required<Account>();
   readonly categories = input.required<string[]>();
+  readonly historyEnabled = input.required<boolean>();
   readonly request = input.required<<T>(path: string, options?: RequestInit) => Promise<T>>();
   readonly viewItem = output<string>();
   readonly t = en;
@@ -29,6 +30,9 @@ export class LostReportsView implements OnDestroy {
   readonly reports = signal<ReportSummary[]>([]);
   readonly report = signal<Report | null>(null);
   readonly matches = signal<PublicItem[]>([]);
+  readonly history = signal<ItemHistoryEntry[]>([]);
+  readonly historyError = signal('');
+  readonly loadingHistory = signal(false);
   readonly busy = signal(false);
   readonly loadingMatches = signal(false);
   readonly error = signal('');
@@ -50,6 +54,7 @@ export class LostReportsView implements OnDestroy {
   private loaded = false;
   private detailId = '';
   private matchVersion = 0;
+  private historyVersion = 0;
 
   constructor() {
     effect(() => {
@@ -140,6 +145,22 @@ export class LostReportsView implements OnDestroy {
     this.detailId = report.id;
     this.report.set(report); this.photoFailed.set(false); this.mode.set('detail'); this.matches.set([]);
     void this.loadMatches(1);
+    if (this.account().role === 'admin' && this.historyEnabled()) void this.loadHistory();
+  }
+
+  async loadHistory(): Promise<void> {
+    const report = this.report();
+    if (!report || this.account().role !== 'admin' || !this.historyEnabled()) return;
+    const version = ++this.historyVersion;
+    this.history.set([]); this.historyError.set(''); this.loadingHistory.set(true);
+    try {
+      const result = await this.request()<{ entries: ItemHistoryEntry[] }>(`/reports/${encodeURIComponent(report.id)}/history`);
+      if (version === this.historyVersion) this.history.set(result.entries);
+    } catch (error) {
+      if (version === this.historyVersion) this.historyError.set(this.message(error, this.t.errors.unavailable));
+    } finally {
+      if (version === this.historyVersion) this.loadingHistory.set(false);
+    }
   }
 
   reportPhoto(report: Report): string | undefined {

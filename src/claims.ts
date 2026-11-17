@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, effect, input, output, signal, untracked } from '@angular/core';
+import { afterNextRender, Component, effect, inject, Injector, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { Account, Item, PublicItem } from '../shared/types';
 import { en } from './en';
@@ -54,6 +54,7 @@ export class ClaimsView {
   private selectedClaim = '';
   private draft: { key: string; body: string } | null = null;
   private commandDraft: { command: ClaimCommand; key: string; body: string } | null = null;
+  private readonly injector = inject(Injector);
 
   constructor() {
     effect(() => {
@@ -65,11 +66,18 @@ export class ClaimsView {
         if (item) {
           this.target.set(item); this.answers = { ...blankAnswers }; this.fields.set([]); this.error.set('');
           this.receipt.set(null); this.draft = null; this.mode.set('form');
+          this.focusWhenActive('claim-form-title');
         } else {
           void this.load(1);
         }
       });
     });
+  }
+
+  private focusWhenActive(id: string): void {
+    afterNextRender(() => {
+      if (this.active()) document.getElementById(id)?.focus();
+    }, { injector: this.injector });
   }
 
   itemName(item: { publicName?: string; category: string }): string {
@@ -100,7 +108,9 @@ export class ClaimsView {
       const result = await this.request()<{ claim: ClaimReceipt }>('/claims', { method: 'POST',
         headers: { 'Idempotency-Key': this.draft.key }, body: this.draft.body });
       this.draft = null; this.uncertain.set(false); this.answers = { ...blankAnswers };
-      this.receipt.set(result.claim); await this.open(result.claim.id);
+      this.receipt.set(result.claim);
+      this.focusWhenActive('claim-confirmation');
+      await this.open(result.claim.id);
     } catch (error) {
       if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
         this.fields.set(error.fields); this.draft = null; this.uncertain.set(false);

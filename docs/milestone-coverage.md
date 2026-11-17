@@ -58,7 +58,7 @@ Custody implements M1 BR-04/05/08 and M2 FR-014 through FR-018 against M3 proces
 
 For CON-005, startup loads `CAMPUS_HOLDING_PERIOD_DAYS` into the single stored setting when supplied (DF-30). The administrator sees received date plus that setting for Open items with no approved claim (DF-31). A fresh database has no default duration, and the date never changes item status. The implementation uses operator configuration for Q-11. The team still needs an agreed policy duration.
 
-The item history view implements the found-item path of FR-026 and M3 process 8.0 (DF-40/41). It returns item and related claim events in timestamp order, with sequence and source as tie-breakers, and includes handover, disposition and contact details. Administrators can open final and withdrawn items by reference. Lost-report history retrieval remains open.
+The history views implement FR-026 and M3 process 8.0 (DF-40/41). Item history returns item and related claim events in timestamp order, with sequence and source as tie-breakers, and includes handover, disposition and contact details. Administrators can open final and withdrawn items by reference. An administrator can read the saved creation event from a lost report, including the recording account and timestamp.
 
 Intake correction implements FR-002 and M3 process 1.0 (DF-06/07/08 and DF-38). The administrator or original receiver assigned to the current holding point can update an Open record. The correction preserves the item identifier and receiving account, stores old and new values in history, and rejects a stale form. Custody uses the transfer operation.
 
