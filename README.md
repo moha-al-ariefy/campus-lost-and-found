@@ -36,6 +36,8 @@ Open `desktop/build/bin/CampusLostFound.exe`. WebView2 Runtime is required. On a
 
 Local records are stored in `%APPDATA%/CampusLostFound/campus.db`. `CAMPUS_DATA_DIR` overrides the directory. Separate local instances do not synchronize. The development test database is ignored by Git and is not embedded in the executable.
 
+Shared-server builds can include a default HTTPS API address by passing `-ldflags "-X main.packagedServerURL=https://your-api-host"` to Wails. `CAMPUS_SERVER_URL` overrides that address. The sign-in screen shows **Create account** when the connected service enables campus signup.
+
 ### Build from source
 
 Requirements: Node 22.12+ within version 22, or Node 24+; Go 1.26+; Wails CLI 2.17.0; Windows WebView2. Linux also requires the platform dependencies in the [Wails installation guide](https://wails.io/docs/gettingstarted/installation/).

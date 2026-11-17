@@ -21,13 +21,19 @@ import (
 //go:embed all:ui
 var bundledUI embed.FS
 
+// Shared-server builds set this at link time. Source builds default to a local preview.
+var packagedServerURL string
+
 func main() {
 	serve := flag.Bool("serve", false, "Run the shared service without a desktop window")
 	address := flag.String("listen", "127.0.0.1:3000", "Shared service address")
 	flag.Parse()
 	root, _ := fs.Sub(bundledUI, "ui")
 	var api http.Handler
-	remote := os.Getenv("CAMPUS_SERVER_URL")
+	remote, configured := os.LookupEnv("CAMPUS_SERVER_URL")
+	if !configured {
+		remote = packagedServerURL
+	}
 	if remote != "" && !*serve {
 		target, err := url.Parse(remote)
 		if err != nil || target.Host == "" {
