@@ -11,7 +11,7 @@ export const en = {
   directory: 'Found items', intake: 'Record an item', signOut: 'Sign out', signingOut: 'Signing out…',
   workspace: 'WORKSPACE', directoryTitle: 'Let’s find your item.', directoryHint: 'Search items handed in at Reception and Student Affairs.',
   intakeTitle: 'Give it a way home.', intakeHint: 'Record an item that has been physically handed in at your holding point.',
-  staffIntakeHint: 'Reception and Student Affairs staff can record items once they’ve been handed in.',
+  staffIntakeHint: 'Found something? Hand it in at Reception or Student Affairs and staff will add it to the directory.',
   localNotice: 'Course test instance', iteration: 'Iteration 1 · Intake & directory',
   allCategories: 'All categories', allPoints: 'Both holding points',
   category: 'Category', location: 'General location', locationHint: 'Building or area', from: 'Found from', to: 'Found until',
