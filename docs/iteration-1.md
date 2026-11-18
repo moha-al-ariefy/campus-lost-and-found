@@ -1,33 +1,43 @@
 # Iteration 1 review
 
-11 November 2026. Evidence from the local Windows preview review.
+This is my record of the local Windows preview review on 11 November 2026
 
-## Implemented
+I’m keeping it as the original snapshot, with current progress in the [test map](test-map.md)
 
-- Angular login, intake, filtered/paginated directory and private item detail.
-- Go credential verification, revocable server-side sessions and stored role permissions.
-- SQLite persistence, append-only history and idempotency in one transaction.
-- Staff holding-point checks and server-side public/private field separation.
-- First-run local course account setup. No university authentication integration.
-- Windows Wails executable with embedded Angular assets. Browser development workflow retained.
+## What I had working
 
-## Evidence
+- Angular login, intake, filtered/paginated directory and private item detail
+- Go credential verification, revocable server-side sessions and stored role permissions
+- SQLite persistence, append-only history and idempotency in one transaction
+- Staff holding-point checks and server-side public/private field separation
+- First-run setup for local course accounts
+- Windows Wails executable with embedded Angular assets, with the browser development workflow kept
 
-Nine backend tests pass: credentials/roles; private fields; intake validation and holding point; concurrent duplicate requests and changed payload; history-write failure rollback; filters/pagination/final items; restart persistence and lost-response retry; cross-origin writes; setup cannot reset existing accounts.
+## What I checked
 
-The Angular production build succeeded. The Windows executable built successfully (16.35 MiB). Native UI verification signed in as reception and read the explicitly labelled fixture previously saved through the browser intake form. The real detail view returned its stored private fields to its creator.
+I had nine passing backend tests covering credentials/roles, private fields, intake validation and holding point, concurrent duplicate requests and changed payload, history-write failure rollback, filters/pagination/final items, restart persistence and lost-response retry, cross-origin writes, setup cannot reset existing accounts
 
-One Windows process-tree sample, PID 11448, seven processes including WebView children: 410.40 MiB summed working sets; 87.09 MiB private working sets; 260.20 MiB private committed memory. Shared pages can be counted repeatedly in the first figure. Reproduce with `scripts/measure-memory.ps1 -AppProcessId <pid>`. Raw local capture: ignored `tmp/memory-native.json`. This is not a sustained load test or cross-framework comparison. Host: Windows 11 Home 10.0.26300, Intel Core i3-1115G4, approximately 7.65 GiB OS-reported physical RAM. WebView version was not recorded for this initial sample.
+I built Angular and the 16.35 MiB Windows EXE, then signed in as reception in the native app and opened the labelled fixture saved from the browser intake form
 
-Window-handle availability was observed after 1,738 ms in one launch. This does not establish UI-ready time or cold-start performance.
+The creator could read the stored private fields
 
-## Remaining checks and limits
+I sampled PID 11448 and its WebView children, seven processes in total, and got 410.40 MiB summed working sets, 87.09 MiB private working sets and 260.20 MiB private committed memory
 
-- Linux build/run, full mobile/browser matrix, keyboard/accessibility audit and M2 load/participant tests are pending.
-- Shared remote desktop sessions, HTTPS hosting, deployment and recovery procedures need integration validation. The local executable does not automatically synchronize with other installations.
-- Reports, photos, matches, claims, handover and custody changes are not yet implemented. Concurrent approval tests belong to iteration 3; only concurrent intake retry is covered now.
-- Q-12 and Q-13 remain unresolved; no approved-claim expiry, cancellation or withdrawal policy was added.
-- Runtime npm audit reported no advisories. Development tooling reported 16 moderate transitive advisories; no forced major-version downgrade was applied.
-- No numeric RAM budget has been agreed. The initial sample is a baseline, not acceptance of memory usage.
+The summed working sets can count shared pages more than once, so I still needed sustained measurements before drawing conclusions about memory
 
-Review this increment before iteration 2. Publishing implementation requires explicit approval for that push.
+The machine was running Windows 11 Home 10.0.26300 on an Intel Core i3-1115G4 with about 7.65 GiB OS-reported physical RAM, and I hadn’t recorded the WebView version for this sample
+
+The raw capture is in the ignored `tmp/memory-native.json`, and the command to take another sample is `scripts/measure-memory.ps1 -AppProcessId <pid>`
+
+I saw a window handle after 1,738 ms in one launch, with UI-ready and cold-start timing still left to measure
+
+## What was left at that review
+
+- Linux build/run, full mobile/browser matrix, keyboard/accessibility audit and M2 load/participant tests are pending
+- Shared remote desktop sessions, HTTPS hosting, deployment and recovery procedures need integration validation, and the local executable does not automatically synchronize with other installations
+- Reports, photos, matches, claims, handover and custody changes are not yet implemented, with concurrent approval tests planned for iteration 3 and intake retry checked at this point
+- Q-12 and Q-13 remain unresolved, no approved-claim expiry, cancellation or withdrawal policy was added
+- Runtime npm audit reported no advisories, while development tooling reported 16 moderate transitive advisories, no forced major-version downgrade was applied
+- No numeric RAM budget has been agreed, so the initial sample is a baseline, not acceptance of memory usage
+
+I wanted this increment reviewed before iteration 2, with my approval required before pushing

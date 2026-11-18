@@ -1,46 +1,56 @@
 # Campus Lost & Found
 
-**Find it. Verify it. Return it.**
+I built this with Team LAMNZ for our RIT Dubai **SWEN 261 final project**, section 600, Fall 2026
 
-Campus Lost & Found is being built for RIT Dubai as Team LAMNZ's final project for **SWEN 261 - Introduction to Software Engineering**, section 600, Fall 2026.
+The idea is to give Reception and Student Affairs one shared record for each item, from the moment someone hands it in until its owner collects it or staff record another outcome
 
-The project brings the reception/security desk and the Office of Student Affairs into one shared lost-property workflow: record an item, help its owner find it, verify the claim, and record the handover.
+## What I used
 
-**Current status:** Windows previews use Angular in the system webview, with a Go backend and SQLite storage. Release targets are Windows and the web. Azure hosts the shared backend on Linux.
+Angular handles the interface, Wails gives us the Windows EXE, and the Go backend stores records and private photos in SQLite
 
-Working now: course-account sign-in, server-side sessions and permissions, found-item intake with an optional private photo, filtered directory, private intake details, administrator history and atomic retry-safe saves. Lost reports, claims and handovers remain in development.
+The shared API runs on Azure, with Windows and the web as our release targets
 
-## The workflow
+## What works so far
 
-* **Campus users:** search the found-item directory, report a loss, submit a claim and follow its decision.
-* **Holding-point staff:** record found items, transfer custody and record approved handovers at their assigned holding points.
-* **Administrators:** review ownership evidence, decide claims, manage dispositions and inspect the activity history.
+- Found-item intake and corrections, including private photos and finder details
+- Directory search by name, category, location, date and holding point
+- Lost reports and possible matches based on the item's attributes
+- Claims, duplicate protection, admin verification and decisions
+- On-site review requests and reopening rejected claims
+- Approved handovers with verification and a signed paper receipt reference
+- Custody transfers, contact attempts, final outcomes and activity history
+- Username signup, course accounts, server sessions and role checks
+- A walkthrough that takes you through the actual controls
 
-These are planned capabilities from M2 and M3, not a claim that they are implemented.
+I checked these locally with the Go suite and Windows/browser walkthroughs, and I keep the remaining Azure, participant and release checks in the [test map](docs/test-map.md)
 
-## The rules that matter
+## How the roles work
 
-* Private photos and identifying details stay with the record creator and administrator. They are not directory thumbnails.
-* An approved claim is not a returned item. Physical handover is a separate recorded action.
-* Retrying a submission must not create another record. A slow connection is not a request for two claims.
-* A save is confirmed only after storage succeeds. The record and its history must survive together.
-* Sign-in uses labelled prototype accounts, as required by the course baseline. It does not connect to RIT SSO or ask for university passwords.
+Campus users can search, report a loss and follow their claims
 
-## Development
+Staff record items and hand them over at their assigned holding point, while administrators review evidence, decide claims and manage final outcomes
 
-Work proceeds through four stages: shared server, finished EXE, web version and production release. Mohammed reviews each stage and approves GitHub pushes explicitly. The Windows preview and standalone API source are available here. The staging API is reachable over HTTPS. See the [test map](docs/test-map.md) for checks still due.
+Photos, finder details and ownership clues stay with the creator and administrator, so the public listing gives people enough to recognise an item while keeping the verification details private
 
-### Run the Windows build
+Approval and collection are separate steps, and I only confirm a save after the record and its history have committed together
 
-Open `desktop/build/bin/CampusLostFound.exe`. WebView2 Runtime is required. On a new local instance, choose a course test password, then sign in as `student`, `reception`, `affairs` or `admin`. Never use your university password. These accounts deliberately share a test password for this labelled course simulation.
+The course requires simulated accounts under CON-002, so use the app's own credentials and keep your university password separate
 
-Local records are stored in `%APPDATA%/CampusLostFound/campus.db`. `CAMPUS_DATA_DIR` overrides the directory. Separate local instances do not synchronize. The development test database is ignored by Git and is not embedded in the executable.
+## Running the app
 
-Shared-server builds can include a default HTTPS API address by passing `-ldflags "-X main.packagedServerURL=https://your-api-host"` to Wails. `CAMPUS_SERVER_URL` overrides that address. The sign-in screen shows **Create account** when the connected service enables campus signup.
+For the shared build, extract the Azure Windows ZIP and open `CampusLostFound.exe`, then sign in or choose **Create account**
 
-### Build from source
+The source build outputs `desktop/build/bin/CampusLostFound.exe` and needs WebView2 Runtime
 
-Requirements for the Windows build include Node 22.12+ within version 22 or Node 24+, Go 1.26+, Wails CLI 2.17.0 and Windows WebView2.
+If you build locally without a server address, the app asks you to create the local course accounts, then you can sign in as `student`, `reception`, `affairs` or `admin` with the password you chose
+
+Local records go in `%APPDATA%/CampusLostFound/campus.db`, or the directory set by `CAMPUS_DATA_DIR`
+
+For a shared build, pass `-ldflags "-X main.packagedServerURL=https://your-api-host"` to Wails, or set `CAMPUS_SERVER_URL` when running it
+
+## Building from source
+
+You'll need Node 22.12+ within version 22 or Node 24+, Go 1.26+, Wails CLI 2.17.0 and Windows WebView2
 
 ```sh
 npm ci
@@ -48,43 +58,58 @@ go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.0
 npm run desktop:build
 ```
 
-Add the Go bin directory to PATH. The build wrapper also recognizes the workspace-local CLI in `tmp/tools/bin`. Angular and Go are bundled into the executable; Node is a build dependency.
+Add the Go bin directory to PATH, or use the workspace CLI in `tmp/tools/bin`
 
-For browser development, run `npm run build:desktop-ui` first, set `CAMPUS_ALLOW_SETUP=true` for a new local test database, then run `npm run dev`. Open `http://127.0.0.1:4200`. Disable setup after initialization. `npm test` runs backend tests; `npm run check` runs Go vet.
+For browser development, run `npm run build:desktop-ui`, set `CAMPUS_ALLOW_SETUP=true` for a new local database and run `npm run dev`, then open `http://127.0.0.1:4200`
 
-The executable accepts `--serve` to run the local HTTP service at `127.0.0.1:3000`. Keep the local setup server on loopback. See the test map for the remaining staging checks.
+Turn setup off once the accounts exist
 
-For staging, build the standalone Go API with `go build ./cmd/campus-server` from the `desktop` directory. It runs without Wails and requires an absolute `CAMPUS_DATA_DIR` on persistent storage. It listens on `127.0.0.1:3000` for an HTTPS reverse proxy and issues Secure session cookies. The staging command has no web account setup. Initialize the course roster locally on the server using `-init-test-accounts` and four distinct test passwords on standard input, ordered student, reception, affairs, admin.
+I use `npm test` for backend tests and `npm run check` for Go vet
 
-The production configuration templates are in `desktop/deploy`. Set `APP_ORIGIN` to the public HTTPS origin in the service environment and `CLAF_API_HOST` to its hostname when loading the Caddy configuration. Found items and lost reports accept one JPEG or PNG of at most 10 MB per record. The API stores at most 1 MB per photo in SQLite with the record and history. The decoder limit is 50 megapixels for baseline 4:2:0 JPEG and 32 megapixels for other supported images. Use an absolute new file path with `-backup` for a consistent SQLite snapshot that includes photos.
+## Server
 
-The `campus-backup.timer` and `campus-backup.service` templates schedule a verified private SQLite snapshot on the first and third Sundays at 02:00 Dubai time. Snapshots are stored in `/var/lib/claf-backups`. Keep an off-VM copy and verify that it can be restored.
+Build the API from `desktop` with `go build ./cmd/campus-server`, using an absolute `CAMPUS_DATA_DIR` on persistent storage
 
-Administrators can withdraw incorrect listings from the item view with a required reason. The database retains the record, photo and history. An approved claim blocks withdrawal while M3 Q-13 remains open.
+The API listens on `127.0.0.1:3000` behind the HTTPS proxy, while the desktop executable also supports `--serve` for a local service
 
-Set `CAMPUS_SIGNUP=true` in the hosted service to enable username-and-password registration for campus roles. Signup is an extension to the original course workflow. The default simulated account mode remains available for CON-002. Google sign-in is pending.
+The templates are in `desktop/deploy`, with `APP_ORIGIN` for the public API origin and `CLAF_API_HOST` for Caddy
 
-### Verification
+The server roster is initialised with `-init-test-accounts` and four distinct passwords on standard input, ordered student, reception, affairs and admin
 
-Run `npm test` for the Go backend suite. The test map records which workflows passed in the local preview and which still need verification against Azure.
+Set `CAMPUS_SIGNUP=true` to enable campus-user registration, which I added alongside the course account workflow
 
-See [iteration 1 evidence and limitations](docs/iteration-1.md).
+Google sign-in is still pending
 
-### Friend testing
+Uploads accept one JPEG or PNG up to 10 MB per found item or lost report, then store at most 1 MB per photo with the record
 
-After building, run `./scripts/package-test.ps1` in PowerShell. The ZIP in `release/` contains the Windows executable, logo, [short test guide](docs/TEST-GUIDE.md), feedback form, [test map](docs/test-map.md) and executable checksum. Send the ZIP and its adjacent SHA256 file together. This is an unsigned Windows x64 preview. Check the test map for shared-server verification.
+The decoder supports up to 50 megapixels for baseline 4:2:0 JPEG and 32 megapixels for the other supported images
 
-For the named Azure build, run `./scripts/package-test.ps1 -BuildName campus-lost-found-azure-windows-x64 -ExecutableName CampusLostFound-AzureCandidate.exe`.
+The backup command takes an absolute new file path through `-backup`, including private photos in the SQLite snapshot
 
-RIT hosting is unavailable. The team runs its shared staging service on Azure. The test map tracks the remaining release checks.
+The systemd templates schedule backups on the first and third Sundays at 02:00 Dubai time in `/var/lib/claf-backups`, with the off-VM recovery check still tracked in the test map
 
-See [milestone and diagram coverage](docs/milestone-coverage.md) and the [M2 requirements register](docs/m2-requirements.md) for the course baseline and planned acceptance checks.
+Admins can withdraw an incorrect Open listing with a reason, keeping its record, photo and history
 
-## Course context
+I kept withdrawal blocked for approved claims while M3 Q-13 is unresolved
 
-**Team:** LAMNZ  
-**Course:** SWEN.261.600, RIT Dubai  
-**Instructor:** Dr. Saleh Aldaajeh  
-**Team members:** Mohammed Al Ariefy, Abdullah H. Ansari, Lana Al Tajer, Zahra Ibrahim and Natnael Argaw.
+## Group testing
 
-This is a course project. Official campus deployment and stakeholder approval are not claimed.
+Run `./scripts/package-test.ps1` in PowerShell after building
+
+For the named Azure build, use `./scripts/package-test.ps1 -BuildName campus-lost-found-azure-windows-x64 -ExecutableName CampusLostFound-AzureCandidate.exe`
+
+The ZIP in `release/` includes the EXE, logo, guide, feedback form, test map and checksum, with another checksum next to the ZIP
+
+Send both files together and follow the [short guide](docs/TEST-GUIDE.md)
+
+I keep the [M1–M3 diagram coverage](docs/milestone-coverage.md), [M2 register](docs/m2-requirements.md) and [original iteration 1 results](docs/iteration-1.md) here so we can check what is actually done before calling it finished
+
+## Course
+
+Team LAMNZ, SWEN.261.600, RIT Dubai, Fall 2026
+
+Our instructor is Dr. Saleh Aldaajeh
+
+Team members are Mohammed Al Ariefy, Abdullah H. Ansari, Lana Al Tajer, Zahra Ibrahim and Natnael Argaw
+
+I built this for and as our course final project, with official campus deployment and stakeholder approval still outside what we have confirmed

@@ -77,12 +77,12 @@ func (a *API) submitClaim(w http.ResponseWriter, r *http.Request, actor *Account
 	if replayClaim(w, tx, actor.ID, key, fingerprint) {
 		return
 	}
-	var status string
-	var approved, duplicate bool
+	var status, existingClaimID string
+	var approved bool
 	err = tx.QueryRow(`SELECT status,
 		EXISTS(SELECT 1 FROM claims WHERE item_id=items.id AND status='Approved'),
-		EXISTS(SELECT 1 FROM claims WHERE item_id=items.id AND claimant_id=? AND status IN ('Submitted','Approved'))
-		FROM items WHERE id=?`, actor.ID, input.ItemID).Scan(&status, &approved, &duplicate)
+		coalesce((SELECT id FROM claims WHERE item_id=items.id AND claimant_id=? AND status IN ('Submitted','Approved') LIMIT 1),'')
+		FROM items WHERE id=?`, actor.ID, input.ItemID).Scan(&status, &approved, &existingClaimID)
 	if errors.Is(err, sql.ErrNoRows) {
 		fail(w, 404, "notFound")
 		return
@@ -95,8 +95,8 @@ func (a *API) submitClaim(w http.ResponseWriter, r *http.Request, actor *Account
 	case status != "Open":
 		fail(w, 409, "itemNotOpen")
 		return
-	case duplicate:
-		fail(w, 409, "claimAlreadyActive")
+	case existingClaimID != "":
+		reply(w, 409, map[string]any{"code": "claimAlreadyActive", "claimId": existingClaimID})
 		return
 	case approved:
 		fail(w, 409, "claimAlreadyApproved")

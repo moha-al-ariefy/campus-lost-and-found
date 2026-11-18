@@ -6,7 +6,7 @@
     <p>{{ account().role === 'admin' ? t.claims.adminIntro : t.claims.intro }}</p>
   </div>
   @if (handoversEnabled() && account().role === 'staff') {
-    <button type="button" class="secondary" (click)="mode.set('handover')">{{ t.handover.openQueue }}</button>
+    <button id="guide-handover-queue" type="button" class="secondary" (click)="mode.set('handover')">{{ t.handover.openQueue }}</button>
   }
   </div>
   @if (busy()) { <p role="status">{{ t.claims.loading }}</p> }
@@ -36,6 +36,9 @@
       @if (error()) {
         <div class="error-banner" role="alert" id="claim-form-error" tabindex="-1"><p>{{ error() }}</p>
           @if (fields().length) { <ul>@for (field of fields(); track field) { <li><a [href]="'#claim-' + field">{{ fieldName(field) }}</a></li> }</ul> }
+          @if (existingClaimId(); as existingId) {
+            <p><button type="button" class="secondary" (click)="open(existingId)">{{ t.claims.openExisting }} ({{ existingId }})</button></p>
+          }
         </div>
       }
       <fieldset [disabled]="busy() || uncertain()">
@@ -96,6 +99,7 @@
           <dt>{{ t.foundOn }}</dt><dd>{{ review.item.dateFound | date:'dd MMM yyyy' }}</dd>
           <dt>{{ t.description }}</dt><dd>{{ review.item.description }}</dd>
           <dt>{{ t.identifyingDetails }}</dt><dd>{{ review.item.identifyingDetails || t.notProvided }}</dd>
+          <dt>{{ t.finder }}</dt><dd>{{ review.item.finder || t.notProvided }}</dd>
           <dt>{{ t.color }} / {{ t.brand }} / {{ t.building }}</dt>
           <dd>{{ review.item.color || t.notProvided }} / {{ review.item.brand || t.notProvided }} / {{ review.item.building || t.notProvided }}</dd>
         </dl>

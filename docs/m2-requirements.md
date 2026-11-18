@@ -1,13 +1,19 @@
 # M2 requirements register
 
-All 70 requirement records from M2 v1.0 §3. Use the original acceptance criteria and conditions for the checks listed here. Stage indicates when work starts or the main check runs. Cross-platform and release evidence is reviewed again at Stage 3. Partial preview evidence refers to the [iteration 1 evidence](iteration-1.md) or visible preview behavior. It does not mean the full M2 acceptance check passed. Record build, environment, test and result in the [test map](test-map.md). Change scope or criteria through M2 Appendix C.
+I keep all 70 requirements from M2 v1.0 §3 here, using the original acceptance criteria for each check
+
+The stage column says when the work starts or gets its main check, and I check the Windows, browser and release evidence again at Stage 3
+
+“Partial preview evidence” refers to the [first iteration](iteration-1.md) or a workflow checked in the preview, with the remaining acceptance work recorded in the [test map](test-map.md)
+
+Any change to scope or acceptance criteria still goes through M2 Appendix C
 
 | Requirement | M2 title | Priority | M2 acceptance / planned check | Stage | Status |
 | --- | --- | --- | --- | --- | --- |
 | IF-001 | Role-appropriate navigation | Must | AC-IF001 / TC-IF001 | 1 | Partial preview evidence |
 | IF-002 | Form feedback | Must | AC-IF002 / TC-IF002 | 1 | Partial preview evidence |
 | IF-003 | Dates and times at the interface | Must | AC-IF003 / TC-IF003 | 1 | Partial preview evidence |
-| IF-004 | Optional photo exchange | Should | AC-IF004 / TC-IF004 | 0 | Open |
+| IF-004 | Optional photo exchange | Should | AC-IF004 / TC-IF004 | 0 | Local API and interface evidence |
 | IF-005 | Storage read failure | Must | AC-IF005 / TC-IF005 | 1 | Partial preview evidence |
 | IF-006 | Interrupted submission feedback | Must | AC-IF006 / TC-IF006 | 1 | Partial preview evidence |
 | FR-001 | Create a found item record | Must | AC-FR001 / TC-FR001 | 1 | Partial preview evidence |
@@ -48,13 +54,13 @@ All 70 requirement records from M2 v1.0 §3. Use the original acceptance criteri
 | CON-003 | Received date and time | Must | AC-CON003 / TC-CON003 | 1 | Partial preview evidence |
 | CON-004 | Police reference for handover | Must | AC-CON004 / TC-CON004 | 1 | Local API evidence |
 | CON-005 | Adjustable holding period | Should | AC-CON005 / TC-CON005 | 1 | Local restart and API evidence |
-| CON-006 | Personal data limits | Must | AC-CON006 / TC-CON006 | 1 | Open |
+| CON-006 | Personal data limits | Must | AC-CON006 / TC-CON006 | 1 | Local schema and API evidence |
 | CON-007 | Free-tier services | Must | AC-CON007 / TC-CON007 | 0 | Open |
 | NFR-006 | Save integrity | Must | AC-NFR006 / TC-NFR006 | 1 | Partial preview evidence |
 | NFR-007 | First response after idle time | Should | AC-NFR007 / TC-NFR007 | 0 | Open |
 | NFR-008 | Visibility of identifying details | Must | AC-NFR008 / TC-NFR008 | 1 | Partial preview evidence |
 | NFR-009 | Encrypted connections | Must | AC-NFR009 / TC-NFR009 | 0 | Open |
-| NFR-010 | Replaceable sign-in | Should | AC-NFR010 / TC-NFR010 | 1 | Open |
+| NFR-010 | Replaceable sign-in | Should | AC-NFR010 / TC-NFR010 | 1 | Local IdentityProvider swap test |
 | NFR-011 | Interface text kept apart from code | Could | AC-NFR011 / TC-NFR011 | 1 | Partial preview evidence |
 | NFR-012 | Supported browsers and screen sizes | Must | AC-NFR012 / TC-NFR012 | 2 | Open |
 | NFR-013 | Local deployment | Must | AC-NFR013 / TC-NFR013 | 3 | Open |
@@ -66,11 +72,11 @@ All 70 requirement records from M2 v1.0 §3. Use the original acceptance criteri
 | DR-002 | Lost item report content | Must | AC-DR002 / TC-DR002 | 1 | Local API evidence |
 | DR-003 | Record identifiers | Must | AC-DR003 / TC-DR003 | 1 | Partial preview evidence |
 | DR-004 | Shared category list | Should | AC-DR004 / TC-DR004 | 1 | Partial preview evidence |
-| DR-005 | Photo limits | Should | AC-DR005 / TC-DR005 | 0 | Open |
+| DR-005 | Photo limits | Should | AC-DR005 / TC-DR005 | 0 | Local boundary and reduction tests |
 | DR-006 | Single holding point | Must | AC-DR006 / TC-DR006 | 1 | Partial preview evidence |
 | DR-007 | One final disposition | Must | AC-DR007 / TC-DR007 | 1 | Local API evidence |
 | DR-008 | One approved claim per item | Must | AC-DR008 / TC-DR008 | 1 | Local API evidence |
 | DR-009 | Handover record completeness | Must | AC-DR009 / TC-DR009 | 1 | Local API and interface evidence |
 | DR-010 | History entries cannot be changed | Must | AC-DR010 / TC-DR010 | 1 | Partial preview evidence |
-| DR-011 | No deletion of records | Should | AC-DR011 / TC-DR011 | 1 | Open |
+| DR-011 | No deletion of records | Should | AC-DR011 / TC-DR011 | 1 | Local route and trigger evidence |
 | NFR-018 | Data export and restore | Should | AC-NFR018 / TC-NFR018 | 0 | Local full-fixture restore evidence |

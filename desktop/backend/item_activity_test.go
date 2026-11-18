@@ -65,13 +65,18 @@ func TestCustodyTransferAndContactHistory(t *testing.T) {
 	if len(history) != len(expected) {
 		t.Fatalf("incomplete item history: %v", history)
 	}
-	for index, action := range expected {
-		if history[index].(map[string]any)["action"] != action {
-			t.Fatalf("expected %s at position %d", action, index)
+	// Consecutive writes can share a clock tick. The chronology test checks the tie-break.
+	detailsByAction := make(map[string]map[string]any, len(history))
+	for _, event := range history {
+		entry := event.(map[string]any)
+		detailsByAction[entry["action"].(string)] = entry["details"].(map[string]any)
+	}
+	for _, action := range expected {
+		if _, present := detailsByAction[action]; !present {
+			t.Fatalf("missing %s from item history", action)
 		}
 	}
-	recorded := history[4].(map[string]any)["details"].(map[string]any)
-	handover := history[5].(map[string]any)["details"].(map[string]any)
+	recorded, handover := detailsByAction["contactAttempt"], detailsByAction["returned"]
 	if recorded["attemptedAt"] != "2026-11-11T09:40:00Z" || recorded["outcome"] != contact.Outcome ||
 		handover["receiptReference"] != handoverFixture().ReceiptReference {
 		t.Fatal("history lost contact or release details")

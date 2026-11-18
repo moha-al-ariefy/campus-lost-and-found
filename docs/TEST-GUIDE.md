@@ -2,24 +2,31 @@
 
 Team LAMNZ · RIT Dubai SWEN 261 final project
 
-Allow about 10 minutes for the shared staging check. Use invented items and identifying clues for every test.
+I need about 10 minutes of your time to check the shared build, using made-up items and clues so we can test it without putting real lost-property details into the app
 
 ## Start
 
-1. Extract the ZIP and open `CampusLostFound.exe`. If Windows asks for WebView2 Runtime, use the [Microsoft installer](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
-2. Sign in with the staging test account Mohammed assigned you. Use **Create account** to test campus-user signup. Never use your university password.
-3. If the app asks you to set up a local instance, you're using the offline build. Local records stay on that computer. Use the Azure build for the two-client check below.
-4. After your first sign-in, follow the welcome guide or select **Skip**. You can reopen it with **How to use the app** at the bottom of the page.
+1. Extract the ZIP and open `CampusLostFound.exe`, using the [Microsoft installer](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) if Windows asks for WebView2 Runtime
+2. Sign in with the account I sent you, or choose **Create account** to try campus-user signup, using a password separate from your university account
+3. If you see local setup, you opened the offline build, so switch to the Azure build for the two-computer check
+4. Try the walkthrough after signing in, using **Next**, **Previous** or Alt with the Right or Left arrow to move between controls
+5. Choose **Exit guide** or press Esc to leave, and use **How to use the app** at the bottom of the page whenever you want it back
 
 ## Check the shared workflow
 
-1. As `reception`, select **Record an item**. Use a distinctive item name such as `TEST headphones 018`, general location `Library`, and a private clue such as `blue tape inside the case`. Add a test JPEG or PNG if you have one. Save and note the item reference.
-2. On a second computer, sign in as a campus user. Search by the exact item name and open it. Confirm the reference matches. The private clue and photo should be hidden.
-3. As that campus user, submit a claim with the matching clue. Open **Claims** and check that it says **Submitted**.
-4. As `admin`, open the claim, compare the private evidence, and approve only after recording both verification checks. The campus user should see **Approved**. Use role accounts assigned for this test.
-5. As `reception`, go to **Claims → Approved handovers**. For this test item, record verification and a fictional signed paper receipt reference. Check that the item leaves the directory and the claimant sees that collection was recorded.
-6. Use Tab, Shift+Tab and Enter through sign-in, search and claim submission. Resize the window and note anything clipped or unreachable.
+1. As `reception`, select **Record an item** and use the name `TEST headphones 018`, location `Library` and a private clue such as `blue tape inside the case`, then add a sample JPEG or PNG, save and note the reference
+2. On another computer, sign in as a campus user and search for that exact name, checking that the reference matches and the private clue and photo stay hidden
+3. Submit a claim with the matching clue, then open **Claims** and check for **Submitted**
+4. As `admin`, open the claim, compare the evidence and record both verification checks before approving it, then check that the campus user sees **Approved**
+5. As `reception`, go to **Claims → Approved handovers** and record the sample verification and a made-up signed paper receipt reference, checking that the item leaves the directory and the claimant sees collection recorded
+6. Try Tab, Shift+Tab and Enter through sign-in, search and the claim form, then resize the window and tell me if anything gets clipped or becomes hard to reach
 
-## Send back
+Use the role accounts I assigned for these checks
 
-Fill in [FEEDBACK.md](FEEDBACK.md) with PASS, FAIL or NOT RUN for each step. Include your Windows version, the item reference, and what you expected and saw. If the unsigned preview is blocked, report the Windows message. Leave passwords, university details and screenshots of private data out of the feedback.
+## Send it back to me
+
+Send me [FEEDBACK.md](FEEDBACK.md) with PASS, FAIL or NOT RUN for each step, your Windows version and the item reference
+
+If something goes wrong, tell me what you expected and what actually happened, including the Windows message if it blocks the unsigned app
+
+Keep passwords, university details and private-data screenshots out of the feedback

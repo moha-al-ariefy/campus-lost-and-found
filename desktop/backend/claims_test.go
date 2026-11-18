@@ -28,7 +28,11 @@ func TestClaimSubmissionEligibilityAndPrivacy(t *testing.T) {
 	}
 	claimID := receipt["id"].(string)
 	requireCode(t, call(api, "POST", "/api/claims", input, student, "claim-test-same-key"), http.StatusOK)
-	requireCode(t, call(api, "POST", "/api/claims", input, student, "claim-test-duplicate-key"), http.StatusConflict)
+	duplicate := call(api, "POST", "/api/claims", input, student, "claim-test-duplicate-key")
+	requireCode(t, duplicate, http.StatusConflict)
+	if contents(t, duplicate)["claimId"] != claimID {
+		t.Fatal("duplicate claim refusal did not offer the existing claim identifier")
+	}
 	changed := input
 	changed.LossAnswer = "Changed"
 	requireCode(t, call(api, "POST", "/api/claims", changed, student, "claim-test-same-key"), http.StatusConflict)

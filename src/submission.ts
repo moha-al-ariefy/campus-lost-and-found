@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(public code: string, public status = 0, public fields: string[] = []) { super(code); }
+  constructor(public code: string, public status = 0, public fields: string[] = [], public claimId = '') { super(code); }
 }
 
 export async function photoSubmissionRequest(key: string, data: unknown, photo: File | null): Promise<RequestInit> {

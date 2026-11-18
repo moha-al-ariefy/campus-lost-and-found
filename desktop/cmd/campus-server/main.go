@@ -24,6 +24,11 @@ func main() {
 	}
 }
 
+func publicHTTPSOrigin(origin string) bool {
+	parsed, err := url.Parse(origin)
+	return err == nil && parsed.Scheme == "https" && parsed.Hostname() != "" && origin == "https://"+parsed.Host
+}
+
 func run() error {
 	initialize := flag.Bool("init-test-accounts", false, "Read four test passwords from stdin: student, reception, affairs, admin")
 	backup := flag.String("backup", "", "Write a consistent SQLite snapshot to a new file")
@@ -69,10 +74,12 @@ func run() error {
 	}
 
 	origin := os.Getenv("APP_ORIGIN")
-	parsedOrigin, err := url.Parse(origin)
-	if err != nil || parsedOrigin.Scheme != "https" || parsedOrigin.Hostname() == "" ||
-		origin != "https://"+parsedOrigin.Host {
+	if !publicHTTPSOrigin(origin) {
 		return errors.New("APP_ORIGIN must be the public HTTPS origin without a path or trailing slash")
+	}
+	webOrigin := os.Getenv("CAMPUS_WEB_ORIGIN")
+	if webOrigin != "" && !publicHTTPSOrigin(webOrigin) {
+		return errors.New("CAMPUS_WEB_ORIGIN must be the website's HTTPS origin without a path or trailing slash")
 	}
 	if err := backend.LoadHoldingPeriod(db); err != nil {
 		return err
@@ -80,6 +87,7 @@ func run() error {
 	api := backend.NewAPI(db)
 	api.SecureCookies = true
 	api.AllowedOrigin = origin
+	api.AllowedWebOrigin = webOrigin
 	api.TrustLocalProxy = true
 	api.EnableSignup = os.Getenv("CAMPUS_SIGNUP") == "true"
 	mux := http.NewServeMux()

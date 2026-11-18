@@ -1,6 +1,8 @@
 package backend
 
 import (
+	"net/http"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -80,5 +82,51 @@ func TestWithdrawItemRetainsRecordPhotoAndHistory(t *testing.T) {
 	history := contents(t, call(api, "GET", path+"/history", nil, admin, ""))["entries"].([]any)
 	if len(history) != 2 || history[1].(map[string]any)["reason"] != reason["reason"] {
 		t.Fatal("withdrawal history missing or duplicated")
+	}
+}
+
+func TestPersonalDataLimitsAndNoDeletionRoutes(t *testing.T) {
+	api, db := fixture(t)
+	staff, student, admin := login(t, api, "reception"), login(t, api, "student"), login(t, api, "admin")
+	itemID := createActivityItem(t, api, staff, "no-delete-item-fixture")
+	report := call(api, "POST", "/api/reports", LostReportInput{
+		Category: "electronics", Description: "No delete report fixture", DateLost: "2026-11-10", Contact: "reporter@example.test",
+	}, student, "no-delete-report-fixture")
+	requireCode(t, report, http.StatusCreated)
+	reportID := contents(t, report)["report"].(map[string]any)["id"].(string)
+	claimID := submitEvidenceFixture(t, api, itemID, student, "no-delete-claim-fixture")
+
+	for _, target := range []string{
+		"/api/items/" + itemID,
+		"/api/items/" + itemID + "/history",
+		"/api/reports/" + reportID,
+		"/api/reports/" + reportID + "/history",
+		"/api/claims/" + claimID,
+		"/api/claims/" + claimID + "/handover",
+	} {
+		requireCode(t, call(api, http.MethodDelete, target, nil, admin, "delete-attempt-key"), http.StatusNotFound)
+	}
+	if count(t, db, "items") != 1 || count(t, db, "lost_reports") != 1 || count(t, db, "claims") != 1 {
+		t.Fatal("DELETE request removed a stored business record")
+	}
+
+	allowedColumns := map[string][]string{
+		"accounts":     {"id", "name", "login", "role", "holding_points", "salt", "password_hash"},
+		"lost_reports": {"id", "reporter_id", "category", "date_lost", "description", "color", "brand", "building", "contact", "assisted", "created_at"},
+		"claims":       {"id", "item_id", "claimant_id", "description_answer", "loss_answer", "contact", "status", "created_at", "reason"},
+		"handovers":    {"claim_id", "item_id", "claimant_id", "releasing_account_id", "released_at", "verification", "receipt_reference", "signed_acknowledgment", "submission_key", "request_hash"},
+	}
+	for table, expected := range allowedColumns {
+		rows, err := db.Query("SELECT name FROM pragma_table_info('" + table + "')")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var col string
+			if err := rows.Scan(&col); err != nil || !slices.Contains(expected, col) {
+				t.Fatalf("unexpected column %q in %s", col, table)
+			}
+		}
+		rows.Close()
 	}
 }

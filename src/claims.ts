@@ -45,6 +45,7 @@ export class ClaimsView {
   readonly uncertain = signal(false);
   readonly error = signal('');
   readonly fields = signal<string[]>([]);
+  readonly existingClaimId = signal('');
   readonly page = signal(1);
   readonly hasMore = signal(false);
   answers = { ...blankAnswers };
@@ -64,7 +65,7 @@ export class ClaimsView {
         if (this.busy() || this.uncertain() || this.uncertainCommand() || item === this.openedItem) return;
         this.openedItem = item;
         if (item) {
-          this.target.set(item); this.answers = { ...blankAnswers }; this.fields.set([]); this.error.set('');
+          this.target.set(item); this.answers = { ...blankAnswers }; this.fields.set([]); this.existingClaimId.set(''); this.error.set('');
           this.receipt.set(null); this.draft = null; this.mode.set('form');
           this.focusWhenActive('claim-form-title');
         } else {
@@ -102,7 +103,7 @@ export class ClaimsView {
   async submit(): Promise<void> {
     const item = this.target();
     if (!item || this.busy()) return;
-    this.error.set(''); this.fields.set([]); this.busy.set(true);
+    this.error.set(''); this.fields.set([]); this.existingClaimId.set(''); this.busy.set(true);
     this.draft ??= { key: crypto.randomUUID(), body: JSON.stringify({ itemId: item.id, ...this.answers }) };
     try {
       const result = await this.request()<{ claim: ClaimReceipt }>('/claims', { method: 'POST',
@@ -114,6 +115,7 @@ export class ClaimsView {
     } catch (error) {
       if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
         this.fields.set(error.fields); this.draft = null; this.uncertain.set(false);
+        this.existingClaimId.set(error.claimId);
         this.error.set(this.message(error));
       } else { this.uncertain.set(true); this.error.set(this.t.unknownOutcome); }
       setTimeout(() => document.getElementById('claim-form-error')?.focus());

@@ -1,5 +1,5 @@
 import { bootstrapApplication } from '@angular/platform-browser';
-import { afterNextRender, Component, inject, Injector, signal } from '@angular/core';
+import { afterNextRender, Component, HostListener, inject, Injector, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import type { Account, Intake, Item, ItemHistoryEntry, PublicItem } from '../shared/types';
@@ -14,6 +14,9 @@ interface IntakeSubmission {
   data: Intake;
   photo: File | null;
 }
+
+type AppView = 'directory' | 'intake' | 'reports' | 'claims';
+interface GuideStep { view: AppView; target: string; title: string; text: string; }
 
 const emptyFilters = { publicName: '', category: '', location: '', holdingPoint: '', from: '', to: '' };
 
@@ -42,7 +45,7 @@ export class App {
   readonly page = signal(1);
   readonly selected = signal<Item | null>(null);
   readonly history = signal<ItemHistoryEntry[]>([]);
-  readonly view = signal<'directory' | 'intake' | 'reports' | 'claims'>('directory');
+  readonly view = signal<AppView>('directory');
   readonly lostReportsEnabled = signal(false);
   readonly lostReportHistoryEnabled = signal(false);
   readonly claimsEnabled = signal(false);
@@ -50,6 +53,7 @@ export class App {
   readonly claimReopeningEnabled = signal(false);
   readonly handoversEnabled = signal(false);
   readonly guideStep = signal(0);
+  readonly guideOpen = signal(false);
   readonly custodyEnabled = signal(false);
   readonly correction = signal<{ id: string; revision: number } | null>(null);
   readonly claimItem = signal<PublicItem | null>(null);
@@ -60,6 +64,7 @@ export class App {
   readonly categories = signal<string[]>([]);
   readonly points = signal<string[]>([]);
   readonly itemNamesEnabled = signal(false);
+  readonly finderDetailsEnabled = signal(false);
   loginName = '';
   displayName = '';
   password = '';
@@ -76,6 +81,8 @@ export class App {
   private detailOpener: HTMLElement | null = null;
   private directoryScroll = 0;
   private readonly seenGuides = new Set<string>();
+  private guideTarget: HTMLElement | null = null;
+  private guideTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() { void this.restoreSession(); }
 
@@ -117,12 +124,13 @@ export class App {
     const data = await response.json().catch(() => ({ code: 'unavailable' }));
     if (!response.ok) {
       if (response.status === 401 && path !== '/login') {
+        this.clearGuideTarget(); this.guideOpen.set(false);
         this.account.set(null); this.items.set([]); this.selected.set(null); this.history.set([]);
         this.resetIntake();
         this.detailVersion++; this.queryVersion++;
         this.error.set(this.t.errors.sessionExpired);
       }
-      throw new ApiError(data.code, response.status, data.fields);
+      throw new ApiError(data.code, response.status, data.fields, data.claimId ?? '');
     }
     return data as T;
   }
@@ -175,18 +183,28 @@ export class App {
     this.setupMessage.set('');
   }
 
-  guideSteps(): readonly { title: string; text: string }[] {
+  guideSteps(): GuideStep[] {
     const guide = this.t.guide;
-    switch (this.account()?.role) {
-      case 'admin': return [guide.search, guide.admin, guide.manage];
-      case 'staff': return [guide.search, guide.staff, guide.release];
-      default: return [guide.search, guide.campus, guide.handIn];
+    const steps: GuideStep[] = [
+      { view: 'directory', target: 'directory-search', ...guide.search },
+      { view: 'directory', target: 'directory-filter-toggle', ...guide.filters },
+    ];
+    const role = this.account()?.role;
+    if (role === 'staff' || role === 'admin') {
+      steps.push({ view: 'intake', target: 'category', ...guide.staff });
+    } else if (this.lostReportsEnabled()) {
+      steps.push({ view: 'reports', target: 'guide-report-new', ...guide.campus });
     }
+    if (this.claimsEnabled()) {
+      steps.push({ view: 'claims', target: role === 'staff' && this.handoversEnabled() ? 'guide-handover-queue' : 'guide-claims-nav',
+        ...(role === 'admin' ? guide.admin : role === 'staff' && this.handoversEnabled() ? guide.release : guide.claims) });
+    }
+    return steps;
   }
 
   private guideKey(): string | undefined {
     const account = this.account();
-    return account ? `campus-guide-v1:${account.id}` : undefined;
+    return account ? `campus-guide-v2:${account.id}` : undefined;
   }
 
   private openFirstGuide(): void {
@@ -197,11 +215,9 @@ export class App {
   }
 
   openGuide(): void {
-    this.guideStep.set(0);
-    afterNextRender(() => {
-      const guide = document.querySelector<HTMLDialogElement>('#app-guide');
-      if (guide && !guide.open && this.account()) guide.showModal();
-    }, { injector: this.injector });
+    if (!this.account() || this.uncertain()) return;
+    this.guideOpen.set(true);
+    this.showGuideStep(0);
   }
 
   moveGuide(direction: number): void {
@@ -209,14 +225,67 @@ export class App {
     if (next >= this.guideSteps().length) {
       this.closeGuide();
     } else if (next >= 0) {
-      this.guideStep.set(next);
-      afterNextRender(() => document.getElementById('app-guide-step')?.focus(), { injector: this.injector });
+      this.showGuideStep(next);
     }
   }
 
-  closeGuide(): void { document.querySelector<HTMLDialogElement>('#app-guide')?.close(); }
+  private showGuideStep(index: number): void {
+    const step = this.guideSteps()[index];
+    this.clearGuideTarget();
+    this.guideStep.set(index);
+    if (step.view !== this.view()) {
+      switch (step.view) {
+        case 'directory': this.showDirectory(); break;
+        case 'reports': this.showReports(); break;
+        case 'claims': this.showClaims(); break;
+        case 'intake': this.showIntake(); break;
+      }
+    } else if (step.view === 'directory' && this.selected()) {
+      this.closeDetail(false);
+    }
+    afterNextRender(() => this.focusGuideTarget(step.target, index, 50), { injector: this.injector });
+  }
 
-  markGuideSeen(): void {
+  private focusGuideTarget(id: string, index: number, attempts: number): void {
+    if (!this.guideOpen() || index !== this.guideStep()) return;
+    const target = document.getElementById(id);
+    if (!target?.getClientRects().length || target.closest('[hidden]') || target.matches(':disabled')) {
+      if (attempts) {
+        this.guideTimer = setTimeout(() => this.focusGuideTarget(id, index, attempts - 1), 100);
+      } else {
+        document.getElementById('app-guide-step')?.focus();
+      }
+      return;
+    }
+    this.guideTarget = target;
+    target.classList.add('guide-target');
+    target.scrollIntoView({ block: 'start', inline: 'nearest' });
+    target.focus({ preventScroll: true });
+  }
+
+  private clearGuideTarget(): void {
+    clearTimeout(this.guideTimer);
+    this.guideTarget?.classList.remove('guide-target');
+    this.guideTarget = null;
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  guideKeys(event: KeyboardEvent): void {
+    if (!this.guideOpen()) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeGuide();
+    } else if (event.altKey && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
+      event.preventDefault();
+      this.moveGuide(event.key === 'ArrowRight' ? 1 : -1);
+    }
+  }
+
+  closeGuide(): void {
+    const target = this.guideTarget;
+    this.clearGuideTarget();
+    this.guideOpen.set(false);
+    if (target?.isConnected) target.focus({ preventScroll: true });
     const key = this.guideKey();
     if (!key) return;
     this.seenGuides.add(key);
@@ -227,6 +296,7 @@ export class App {
     this.busy.set(true); this.error.set('');
     try {
       await this.api('/logout', { method: 'POST', body: '{}' });
+      if (this.guideOpen()) this.closeGuide();
       this.queryVersion++; this.detailVersion++;
       this.account.set(null); this.items.set([]); this.selected.set(null); this.history.set([]);
       this.claimItem.set(null);
@@ -237,9 +307,10 @@ export class App {
   }
 
   async loadConfig(): Promise<void> {
-    const config = await this.api<{ categories: string[]; holdingPoints: string[]; itemNames?: boolean; lostReports?: boolean; lostReportHistory?: boolean; claims?: boolean; claimReview?: boolean; claimReopening?: boolean; handovers?: boolean; custody?: boolean }>('/config');
+    const config = await this.api<{ categories: string[]; holdingPoints: string[]; itemNames?: boolean; finderDetails?: boolean; lostReports?: boolean; lostReportHistory?: boolean; claims?: boolean; claimReview?: boolean; claimReopening?: boolean; handovers?: boolean; custody?: boolean }>('/config');
     this.categories.set(config.categories); this.points.set(config.holdingPoints);
     this.itemNamesEnabled.set(config.itemNames === true);
+    this.finderDetailsEnabled.set(config.finderDetails === true);
     this.lostReportsEnabled.set(config.lostReports === true);
     this.lostReportHistoryEnabled.set(config.lostReportHistory === true);
     this.claimsEnabled.set(config.claims === true);
@@ -339,6 +410,7 @@ export class App {
       category: item.category, publicName: item.publicName ?? '', description: item.description ?? '',
       location: item.location, dateFound: item.dateFound, receivedAt: item.receivedAt ?? '',
       holdingPoint: item.holdingPoint, identifyingDetails: item.identifyingDetails ?? '',
+      finder: item.finder ?? '',
       color: item.color ?? '', brand: item.brand ?? '', building: item.building ?? ''
     };
   }
@@ -348,7 +420,7 @@ export class App {
   }
   private blankForm(): Intake {
     const now = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
-    return { category: '', description: '', location: '', dateFound: now.slice(0, 10), receivedAt: now.slice(0, 16), holdingPoint: '', identifyingDetails: '', color: '', brand: '', building: '' };
+    return { category: '', description: '', location: '', dateFound: now.slice(0, 10), receivedAt: now.slice(0, 16), holdingPoint: '', identifyingDetails: '', finder: '', color: '', brand: '', building: '' };
   }
 
   selectPhoto(input: HTMLInputElement): void {
@@ -389,7 +461,11 @@ export class App {
   async save(): Promise<void> {
     if (this.busy() || this.photoError()) return;
     this.busy.set(true); this.error.set(''); this.invalidFields.set([]);
-    if (!this.submission) this.submission = { key: crypto.randomUUID(), data: { ...this.form }, photo: this.intakePhoto };
+    if (!this.submission) this.submission = {
+      key: crypto.randomUUID(),
+      data: { ...this.form, finder: this.finderDetailsEnabled() ? this.form.finder : undefined },
+      photo: this.intakePhoto
+    };
     try {
       const { key, data, photo } = this.submission;
       const correction = this.correction();

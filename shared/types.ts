@@ -6,6 +6,7 @@ export interface Item extends Omit<PublicItem, 'status'> {
   status: ItemStatus;
   description?: string;
   identifyingDetails?: string;
+  finder?: string;
   receivedAt?: string;
   color?: string;
   brand?: string;
@@ -54,6 +55,7 @@ export interface Intake {
   receivedAt: string;
   holdingPoint: string;
   identifyingDetails: string;
+  finder?: string;
   color: string;
   brand: string;
   building: string;

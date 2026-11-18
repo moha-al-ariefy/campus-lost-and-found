@@ -23,7 +23,7 @@ type itemCorrection struct {
 
 func intakePrivateData(data Intake) string {
 	return encode(map[string]string{"description": data.Description, "identifyingDetails": data.IdentifyingDetails,
-		"receivedAt": data.ReceivedAt, "color": data.Color, "brand": data.Brand, "building": data.Building})
+		"finder": data.Finder, "receivedAt": data.ReceivedAt, "color": data.Color, "brand": data.Brand, "building": data.Building})
 }
 
 type nonReturnDisposition struct {

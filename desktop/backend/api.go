@@ -3,7 +3,6 @@ package backend
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -22,17 +21,19 @@ import (
 )
 
 type API struct {
-	DB              *sql.DB
-	AllowSetup      bool
-	SecureCookies   bool
-	AllowedOrigin   string
-	TrustLocalProxy bool
-	EnableSignup    bool
-	photoUploads    chan struct{}
-	photoDecoder    chan struct{}
-	loginSlots      chan struct{}
-	mu              sync.Mutex
-	attempts        map[string]attempt
+	DB               *sql.DB
+	AllowSetup       bool
+	SecureCookies    bool
+	AllowedOrigin    string
+	AllowedWebOrigin string
+	TrustLocalProxy  bool
+	EnableSignup     bool
+	IdentityProvider IdentityProvider
+	photoUploads     chan struct{}
+	photoDecoder     chan struct{}
+	loginSlots       chan struct{}
+	mu               sync.Mutex
+	attempts         map[string]attempt
 }
 type attempt struct {
 	count int
@@ -47,6 +48,7 @@ type Intake struct {
 	ReceivedAt         string `json:"receivedAt"`
 	HoldingPoint       string `json:"holdingPoint"`
 	IdentifyingDetails string `json:"identifyingDetails"`
+	Finder             string `json:"finder,omitempty"`
 	Color              string `json:"color"`
 	Brand              string `json:"brand"`
 	Building           string `json:"building"`
@@ -57,9 +59,15 @@ const maxItemNameLength = 80
 
 func NewAPI(db *sql.DB) *API {
 	return &API{
-		DB: db, attempts: make(map[string]attempt),
+		DB: db, IdentityProvider: PrototypeIdentityProvider{DB: db}, attempts: make(map[string]attempt),
 		photoUploads: make(chan struct{}, 4), photoDecoder: make(chan struct{}, 1), loginSlots: make(chan struct{}, 4),
 	}
+}
+func (a *API) identityProvider() IdentityProvider {
+	if a.IdentityProvider != nil {
+		return a.IdentityProvider
+	}
+	return &PrototypeIdentityProvider{DB: a.DB}
 }
 func hash(value string) string {
 	result := sha256.Sum256([]byte(value))
@@ -111,7 +119,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if r.Method != "GET" && r.Method != "HEAD" {
 		origin := r.Header.Get("Origin")
-		validOrigin := origin == "" || origin == a.AllowedOrigin || slices.Contains([]string{"http://127.0.0.1:3000", "http://localhost:3000", "http://127.0.0.1:4200", "http://localhost:4200", "http://wails.localhost", "https://wails.localhost", "wails://wails.localhost"}, origin)
+		validOrigin := origin == "" || origin == a.AllowedOrigin || origin == a.AllowedWebOrigin || slices.Contains([]string{"http://127.0.0.1:3000", "http://localhost:3000", "http://127.0.0.1:4200", "http://localhost:4200", "http://wails.localhost", "https://wails.localhost", "wails://wails.localhost"}, origin)
 		if r.Header.Get("X-Campus-Request") != "1" || !validOrigin {
 			fail(w, 403, "forbidden")
 			return
@@ -149,7 +157,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "campus_session", Value: "", Path: "/api", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: a.SecureCookies, MaxAge: -1})
 		reply(w, 200, map[string]bool{"ok": true})
 	case r.URL.Path == "/api/config" && r.Method == "GET":
-		reply(w, 200, map[string]any{"categories": Categories, "holdingPoints": HoldingPoints, "itemNames": true, "lostReports": true, "lostReportHistory": true, "claims": true, "claimReview": true, "claimReopening": true, "handovers": true, "custody": true})
+		reply(w, 200, map[string]any{"categories": Categories, "holdingPoints": HoldingPoints, "itemNames": true, "finderDetails": true, "lostReports": true, "lostReportHistory": true, "claims": true, "claimReview": true, "claimReopening": true, "handovers": true, "custody": true})
 	case r.URL.Path == "/api/handovers" && r.Method == "GET":
 		a.listPendingHandovers(w, r, actor)
 	case r.URL.Path == "/api/claims" && r.Method == "POST":
@@ -257,7 +265,8 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 	}
 	// Ignore client role claims. Only the stored account decides access.
 	r.Body = http.MaxBytesReader(w, r.Body, 32768)
-	if json.NewDecoder(r.Body).Decode(&credentials) != nil || len(credentials.Password) == 0 || len(credentials.Password) > 200 || len(credentials.Login) > 100 {
+	if json.NewDecoder(r.Body).Decode(&credentials) != nil || strings.TrimSpace(credentials.Login) == "" ||
+		len(credentials.Password) == 0 || len(credentials.Password) > 200 || len(credentials.Login) > 100 {
 		fail(w, 401, "loginFailed")
 		return
 	}
@@ -266,29 +275,16 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { <-a.loginSlots }()
 	now := time.Now()
-	var account Account
-	var points, salt, expected string
-	err := a.DB.QueryRow("SELECT id,name,role,holding_points,salt,password_hash FROM accounts WHERE login=?", strings.ToLower(strings.TrimSpace(credentials.Login))).Scan(&account.ID, &account.Name, &account.Role, &points, &salt, &expected)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		fail(w, 503, "unavailable")
-		return
-	}
-	found := err == nil
-	if !found {
-		salt = strings.Repeat("0", 32)
-		expected = strings.Repeat("0", 128)
-	}
-	computed, err := derivePassword(credentials.Password, salt)
-	if err != nil {
-		fail(w, 503, "unavailable")
-		return
-	}
-	correct := subtle.ConstantTimeCompare([]byte(hex.EncodeToString(computed)), []byte(expected)) == 1
-	if !found || !correct {
+	authenticated, err := a.identityProvider().Authenticate(r.Context(), credentials.Login, credentials.Password)
+	if errors.Is(err, ErrInvalidCredentials) {
 		fail(w, 401, "loginFailed")
 		return
 	}
-	_ = json.Unmarshal([]byte(points), &account.HoldingPoints)
+	if err != nil || authenticated == nil {
+		fail(w, 503, "unavailable")
+		return
+	}
+	account := *authenticated
 	random := make([]byte, 32)
 	if _, err := rand.Read(random); err != nil {
 		fail(w, 503, "unavailable")
@@ -508,6 +504,10 @@ func validate(data *Intake) []string {
 	data.PublicName = strings.TrimSpace(data.PublicName)
 	if !validItemName(data.PublicName) {
 		fields = append(fields, "publicName")
+	}
+	data.Finder = strings.TrimSpace(data.Finder)
+	if utf8.RuneCountInString(data.Finder) > 200 || strings.IndexFunc(data.Finder, unicode.IsControl) >= 0 {
+		fields = append(fields, "finder")
 	}
 	for _, field := range []struct {
 		name     string

@@ -13,14 +13,15 @@ export const en = {
   intakeTitle: 'Give it a way home.', intakeHint: 'Record an item that has been physically handed in at your holding point.',
   staffIntakeHint: 'Found something? Hand it in at Reception or Student Affairs and staff will add it to the directory.',
   guide: {
-    open: 'How to use the app', title: 'Welcome to Campus Lost & Found', skip: 'Skip', done: 'Got it',
-    search: { title: 'Start with Found items', text: 'Search by item name, or filter by category, date and holding point.' },
-    campus: { title: 'Report or claim an item', text: 'Use Lost reports if you can’t find your item. If you recognise a listing, open it and select Claim this item. Follow the decision under Claims.' },
-    staff: { title: 'Record items at your desk', text: 'Use Record an item after someone hands it in. Keep distinguishing details and photos in the private fields.' },
-    release: { title: 'Check approved handovers', text: 'Open Approved handovers under Claims. Record the release after confirming the claimant and collecting a signed paper receipt.' },
-    admin: { title: 'Review claims and evidence', text: 'Open Claims to compare the claimant’s answers with the private item record. Save your verification checks and decision.' },
-    manage: { title: 'Keep custody up to date', text: 'Open a found item to record its transfer, contact attempts or final outcome, and review its activity.' },
-    handIn: { title: 'Found something?', text: 'Bring it to Reception or Student Affairs so staff can record it and keep it safe.' }
+    open: 'How to use the app', title: 'App walkthrough', skip: 'Exit guide', done: 'Finish',
+    keys: 'Alt + Right or Left to move. Esc to exit.',
+    search: { title: 'Search for an item', text: 'Try typing an item name in the highlighted search field and press Enter.' },
+    filters: { title: 'Narrow your search', text: 'Open More filters to limit results by category, date or holding point.' },
+    campus: { title: 'Report a lost item', text: 'Use this button if you can’t find your item in the directory. You can open the form during the walkthrough.' },
+    staff: { title: 'Record an item at your desk', text: 'Begin with the category. Keep identifying details and photos in the private fields.' },
+    claims: { title: 'Follow your claims', text: 'Claims shows what happened after you submit one. To start a claim, open a matching listing in Found items and choose Claim this item.' },
+    release: { title: 'Check approved handovers', text: 'You’re in Claims. Open Approved handovers to find items ready for collection at your holding point.' },
+    admin: { title: 'Review claims and evidence', text: 'You’re in Claims. Open a claim to compare the answers with the private item record and save a decision.' },
   },
   allCategories: 'All categories', allPoints: 'Both holding points',
   category: 'Category', location: 'General location', locationHint: 'Building or area', from: 'Found from', to: 'Found until',
@@ -48,7 +49,8 @@ export const en = {
     contact: 'Contact detail', contactHint: 'Optional. Enter a way for staff to contact you about the claim.',
     send: 'Submit claim', sent: 'Your claim was submitted.', loading: 'Loading claims…', back: 'Back to claims',
     detail: 'Claim details', reason: 'Decision reason', submittedHint: 'Your ownership request is waiting for review.',
-    approvedHint: 'Staff can arrange collection at the holding point shown below.', status: { Submitted: 'Submitted', Approved: 'Approved', Rejected: 'Rejected' }
+    approvedHint: 'Staff can arrange collection at the holding point shown below.',
+    openExisting: 'Open existing claim', status: { Submitted: 'Submitted', Approved: 'Approved', Rejected: 'Rejected' }
   },
   review: {
     claimantEvidence: 'Claimant’s answers', itemEvidence: 'Private item record', title: 'Record a decision', outcome: 'Decision',
@@ -103,6 +105,7 @@ export const en = {
   reference: 'Reference', next: 'Next', previous: 'Previous', page: 'Page',
   description: 'Description', descriptionHint: 'Describe the item for staff. This description is kept private.',
   identifyingDetails: 'Identifying details', identifyingHint: 'Distinctive marks or other clues that help staff verify ownership.',
+  finder: 'Finder', finderHint: 'Optional. Record who found and handed in the item, if known. Kept private.',
   dateFound: 'Date found', receivedAt: 'Received date & time', receivedHint: 'Campus time · Asia/Dubai (UTC+4)',
   holdingPoint: 'Holding point', color: 'Color', brand: 'Brand', building: 'Building',
   chooseCategory: 'Choose a category', choosePoint: 'Choose a holding point', optional: 'optional',

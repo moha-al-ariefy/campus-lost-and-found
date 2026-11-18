@@ -1,4 +1,4 @@
-# Test feedback
+# Feedback for my app
 
 - Tester initials:
 - Date:
@@ -28,7 +28,7 @@
 
 ## Issue
 
-Copy this section for each issue.
+Copy this bit for each issue so I can reproduce it
 
 - Account role (no password):
 - Steps to reproduce:
@@ -36,9 +36,9 @@ Copy this section for each issue.
 - Actual:
 - Happens every time or occasionally:
 - Screenshot filename:
-- Was there a delay? Approximately how long:
+- If it felt slow, roughly how long did it take:
 
-## Usability
+## How it felt
 
 - What was confusing?
 - What felt slow?
